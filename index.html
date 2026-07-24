@@ -454,6 +454,265 @@
     color: var(--text-dim);
     font-family: var(--font-mono, monospace);
   }
+
+  /* === EASTER EGG OVERLAY === */
+  #egg-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0,0,0,0.92);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    pointer-events: all;
+  }
+
+  #egg-diamond-wrap {
+    position: relative;
+    width: 180px;
+    height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #egg-diamond {
+    width: 130px;
+    height: 130px;
+    border: 8px solid rgba(255,255,255,0.9);
+    transform: rotate(45deg);
+    background: transparent;
+    box-shadow: 0 0 30px rgba(255,255,255,0.3),
+                inset 0 0 20px rgba(255,255,255,0.08);
+  }
+
+  #egg-diamond.animate-in {
+    animation: diamondAppear 1.2s cubic-bezier(0.22,0.61,0.36,1) forwards;
+  }
+
+  @keyframes diamondAppear {
+    0%   { opacity: 0; transform: rotate(45deg) scale(0); }
+    50%  { opacity: 1; transform: rotate(45deg) scale(1.15); }
+    70%  { transform: rotate(45deg) scale(0.95); }
+    100% { opacity: 1; transform: rotate(45deg) scale(1); }
+  }
+
+  @keyframes diamondPulse {
+    0%, 100% { box-shadow: 0 0 30px rgba(255,255,255,0.3), inset 0 0 20px rgba(255,255,255,0.08); }
+    50% { box-shadow: 0 0 50px rgba(255,255,255,0.6), inset 0 0 35px rgba(255,255,255,0.15); }
+  }
+
+  #egg-reveal {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    position: relative;
+  }
+
+  #egg-image {
+    width: 340px;
+    height: 340px;
+    object-fit: cover;
+    border-radius: 12px;
+    border: 3px solid rgba(220,80,80,0.6);
+    box-shadow: 0 0 40px rgba(220,80,80,0.5);
+    animation: eggImageIn 1.8s ease-out forwards;
+  }
+
+  @keyframes eggImageIn {
+    0%   { opacity: 0; transform: scale(0.6); filter: blur(10px); }
+    100% { opacity: 1; transform: scale(1); filter: blur(0); }
+  }
+
+  /* === Glitch / 花屏 overlay === */
+  #egg-glitch {
+    position: fixed;
+    inset: 0;
+    z-index: 10002;
+    pointer-events: none;
+    display: none;
+    overflow: hidden;
+  }
+
+  #egg-glitch.fire {
+    display: block;
+    animation: glitchCycle 0.7s steps(1) forwards;
+  }
+
+  @keyframes glitchCycle {
+    0%   { opacity: 0; }
+    8%   { opacity: 1; }
+    16%  { opacity: 0.4; }
+    24%  { opacity: 0.9; }
+    32%  { opacity: 0; }
+    40%  { opacity: 0.8; }
+    48%  { opacity: 0.2; }
+    56%  { opacity: 1; }
+    64%  { opacity: 0; }
+    72%  { opacity: 0.7; }
+    80%  { opacity: 0; }
+    90%  { opacity: 0.5; }
+    100% { opacity: 0; }
+  }
+
+  #egg-glitch .glitch-bar {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 8px;
+    background: #fff;
+    opacity: 0.8;
+  }
+
+  #egg-glitch .glitch-bar:nth-child(1)  { top: 15%; background: #ff0000; animation: barShift1 0.7s steps(2) forwards; }
+  #egg-glitch .glitch-bar:nth-child(2)  { top: 28%; background: #00ff00; animation: barShift2 0.7s steps(2) forwards; }
+  #egg-glitch .glitch-bar:nth-child(3)  { top: 42%; background: #0000ff; animation: barShift1 0.7s steps(2) forwards; }
+  #egg-glitch .glitch-bar:nth-child(4)  { top: 55%; background: #ff00ff; animation: barShift3 0.7s steps(2) forwards; }
+  #egg-glitch .glitch-bar:nth-child(5)  { top: 68%; background: #ffff00; animation: barShift2 0.7s steps(2) forwards; }
+  #egg-glitch .glitch-bar:nth-child(6)  { top: 80%; background: #00ffff; animation: barShift1 0.7s steps(2) forwards; }
+  #egg-glitch .glitch-bar:nth-child(7)  { top: 10%; background: #ff8800; animation: barShift3 0.7s steps(2) forwards; }
+  #egg-glitch .glitch-bar:nth-child(8)  { top: 35%; background: #88ff00; animation: barShift2 0.7s steps(2) forwards; }
+  #egg-glitch .glitch-bar:nth-child(9)  { top: 50%; background: #ff0088; animation: barShift1 0.7s steps(2) forwards; }
+  #egg-glitch .glitch-bar:nth-child(10) { top: 72%; background: #0088ff; animation: barShift3 0.7s steps(2) forwards; }
+
+  @keyframes barShift1 {
+    0%   { transform: translateX(-100%); }
+    50%  { transform: translateX(30%); }
+    100% { transform: translateX(100%); }
+  }
+  @keyframes barShift2 {
+    0%   { transform: translateX(100%); }
+    50%  { transform: translateX(-40%); }
+    100% { transform: translateX(-100%); }
+  }
+  @keyframes barShift3 {
+    0%   { transform: translateX(0); }
+    33%  { transform: translateX(150%); }
+    66%  { transform: translateX(-80%); }
+    100% { transform: translateX(0); }
+  }
+
+  /* Scanlines */
+  #egg-glitch::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.15) 2px,
+      rgba(0,0,0,0.15) 4px
+    );
+  }
+
+  #egg-glitch-text {
+    color: #f87171;
+    font-size: 17px;
+    margin-top: 18px;
+    letter-spacing: 2px;
+    animation: glitchShake 0.15s infinite;
+    font-family: var(--font-mono, monospace);
+    max-width: 500px;
+    line-height: 1.6;
+  }
+
+  @keyframes glitchShake {
+    0%   { transform: translate(0,0); opacity: 0.9; }
+    25%  { transform: translate(-2px,1px); opacity: 1; }
+    50%  { transform: translate(2px,-1px); opacity: 0.8; }
+    75%  { transform: translate(-1px,-2px); opacity: 1; }
+    100% { transform: translate(0,0); opacity: 0.9; }
+  }
+
+  #egg-fix-btn {
+    margin-top: 20px;
+    padding: 10px 28px;
+    font-size: 16px;
+    cursor: pointer;
+    border: 2px solid #58a6ff;
+    background: #1c2841;
+    color: #58a6ff;
+    border-radius: 8px;
+    font-family: var(--font-sans, sans-serif);
+    transition: all 0.3s;
+    letter-spacing: 1px;
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  #egg-fix-btn.visible {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 1s ease-out, transform 0.8s ease-out;
+    animation: btnPulse 0.8s ease-in-out infinite;
+  }
+
+  @keyframes btnPulse {
+    0%, 100% { box-shadow: 0 0 8px rgba(88,166,255,0.3); }
+    50% { box-shadow: 0 0 20px rgba(88,166,255,0.6); }
+  }
+
+  #egg-fix-btn.pressed {
+    animation: none;
+    transform: scale(0.93);
+    background: #58a6ff;
+    color: #fff;
+    border-color: #fff;
+    box-shadow: 0 0 30px rgba(88,166,255,0.8);
+  }
+
+  /* Fake diamond cursor */
+  #egg-fake-cursor {
+    position: fixed;
+    z-index: 10001;
+    pointer-events: none;
+    width: 28px;
+    height: 28px;
+    border: 3px solid rgba(255,255,255,0.9);
+    transform: rotate(45deg);
+    background: transparent;
+    box-shadow: 0 0 8px rgba(255,255,255,0.4);
+    display: none;
+    transition: none;
+  }
+
+  #egg-fake-cursor.clicking {
+    animation: cursorClick 0.3s ease-out;
+  }
+
+  @keyframes cursorClick {
+    0%   { transform: rotate(45deg) scale(1); }
+    50%  { transform: rotate(45deg) scale(0.6); }
+    100% { transform: rotate(45deg) scale(1); }
+  }
+
+  #egg-blackout {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: #000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+  }
+
+  #egg-real-text {
+    color: #fff;
+    font-size: 26px;
+    text-align: center;
+    animation: fadeInText 1.8s ease-out;
+    letter-spacing: 3px;
+    line-height: 1.8;
+  }
+
+  @keyframes fadeInText {
+    0%   { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
 </style>
 </head>
 <body>
@@ -563,6 +822,34 @@
     <div id="gacha-pity">距上次 6★: <span id="gacha-pity-count">0</span> 抽</div>
     <div id="gacha-total">累计抽取: <span id="gacha-count">0</span> 次</div>
   </div>
+</div>
+
+<!-- EASTER EGG OVERLAY -->
+<div id="egg-overlay">
+  <div id="egg-diamond-wrap">
+    <div id="egg-diamond"></div>
+  </div>
+  <div id="egg-reveal">
+    <img id="egg-image" src="" alt="">
+    <div id="egg-glitch-text">濂戒箙涓嶈锛屾垜浼氫竴鐩寸湅鐫€浣犵殑锛屼竴鐩淬€�</div>
+    <button id="egg-fix-btn">乱码修复</button>
+  </div>
+</div>
+
+<!-- GLITCH OVERLAY -->
+<div id="egg-glitch">
+  <div class="glitch-bar"></div><div class="glitch-bar"></div><div class="glitch-bar"></div>
+  <div class="glitch-bar"></div><div class="glitch-bar"></div><div class="glitch-bar"></div>
+  <div class="glitch-bar"></div><div class="glitch-bar"></div><div class="glitch-bar"></div>
+  <div class="glitch-bar"></div>
+</div>
+
+<!-- FAKE DIAMOND CURSOR -->
+<div id="egg-fake-cursor"></div>
+
+<!-- EASTER EGG BLACKOUT -->
+<div id="egg-blackout">
+  <div id="egg-real-text">好久不见<br>我会一直看着你的，一直。</div>
 </div>
 
 <script>
@@ -1319,11 +1606,31 @@ const CHARACTERS_4STAR = [
   { file: "Fluorite", name: "萤石" },
 ];
 
+// ---- Secret / Easter Egg character ----
+const EASTER_EGG_RATE = 0.000001; // 0.000001%
+const SECRET_CHAR = {
+  file: "__secret__",
+  name: "???",
+  rarity: 7,
+  starsText: "？？？",
+  imageUrl: "https://images.moecm.com/images/2026/07/24/1.jpg",
+};
+
 const IMG_BASE = "Characters/Characters' Images/";
 let gachaTotalCount = 0;
 let sixStarPity = 0;  // pulls since last 6-star
+let easterEggActive = false; // prevent concurrent easter egg triggers
+let easterEggClaimed = localStorage.getItem('egg_claimed') === '1'; // one-time only
 
 function gachaSingleDraw() {
+  // Check easter egg first — independent of rarity system (one-time only)
+  if (!easterEggClaimed && Math.random() < EASTER_EGG_RATE) {
+    sixStarPity++; // still count toward pity
+    easterEggClaimed = true;
+    localStorage.setItem('egg_claimed', '1');
+    return { ...SECRET_CHAR, isEasterEgg: true };
+  }
+
   sixStarPity++;
 
   // Calculate 6-star rate with soft pity
@@ -1341,13 +1648,11 @@ function gachaSingleDraw() {
   let pool, rarity, starsText;
 
   if (roll < sixStarRate) {
-    // 6-star!
     pool = CHARACTERS_6STAR;
     rarity = 6;
     starsText = '★★★★★★';
-    sixStarPity = 0;  // reset pity
+    sixStarPity = 0;
   } else {
-    // Remaining probability: 5-star 8% / (8%+91.2%) ≈ 8.06%, 4-star ≈ 91.94%
     const remainingRoll = Math.random();
     if (remainingRoll < 8 / 99.2) {
       pool = CHARACTERS_5STAR;
@@ -1361,25 +1666,51 @@ function gachaSingleDraw() {
   }
 
   const char = pool[Math.floor(Math.random() * pool.length)];
-  return { ...char, rarity, starsText };
+  return { ...char, rarity, starsText, isEasterEgg: false };
 }
 
 function gachaDraw(count) {
+  if (easterEggActive) return; // block draws during easter egg
+
   const resultsEl = document.getElementById('gacha-results');
   resultsEl.innerHTML = '';
 
   const characters = [];
+  let triggeredEgg = false;
+
   for (let i = 0; i < count; i++) {
-    characters.push(gachaSingleDraw());
+    const result = gachaSingleDraw();
+    if (result.isEasterEgg) {
+      // Easter egg triggered — replace ALL results with just this one
+      characters.length = 0;
+      characters.push(result);
+      triggeredEgg = true;
+      break;
+    }
+    characters.push(result);
   }
 
+  // Render cards
   characters.forEach((char, i) => {
     const card = document.createElement('div');
-    card.className = 'gacha-card rarity-' + char.rarity;
+    if (char.isEasterEgg) {
+      card.className = 'gacha-card';
+      card.style.background = 'linear-gradient(135deg, #ff0000, #000000, #ff0000)';
+      card.style.boxShadow = '0 0 25px rgba(255,0,0,0.7)';
+      card.style.animation = 'gachaReveal 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both';
+    } else {
+      card.className = 'gacha-card rarity-' + char.rarity;
+    }
     card.style.animationDelay = (i * 0.08) + 's';
 
     const img = document.createElement('img');
-    img.src = IMG_BASE + char.file + '.webp';
+    if (char.isEasterEgg) {
+      img.src = char.imageUrl;
+      img.style.border = '2px solid rgba(255,0,0,0.6)';
+      img.crossOrigin = 'anonymous';
+    } else {
+      img.src = IMG_BASE + char.file + '.webp';
+    }
     img.alt = char.name;
     img.title = char.name + ' (' + char.starsText + ')';
     img.loading = 'lazy';
@@ -1409,9 +1740,119 @@ function gachaDraw(count) {
     resultsEl.appendChild(card);
   });
 
-  gachaTotalCount += count;
+  gachaTotalCount += (triggeredEgg ? 1 : count);
   document.getElementById('gacha-count').textContent = gachaTotalCount;
   document.getElementById('gacha-pity-count').textContent = sixStarPity;
+
+  // Trigger easter egg animation after a brief pause
+  if (triggeredEgg) {
+    easterEggActive = true;
+    setTimeout(() => triggerEasterEgg(), 600);
+  }
+}
+
+// ============================================================
+// Easter Egg Animation
+// ============================================================
+function triggerEasterEgg() {
+  // Close gacha modal
+  closeGacha();
+
+  const overlay = document.getElementById('egg-overlay');
+  const diamond = document.getElementById('egg-diamond');
+  const diamondWrap = document.getElementById('egg-diamond-wrap');
+  const reveal = document.getElementById('egg-reveal');
+  const eggImg = document.getElementById('egg-image');
+  const fixBtn = document.getElementById('egg-fix-btn');
+  const fakeCursor = document.getElementById('egg-fake-cursor');
+  const glitch = document.getElementById('egg-glitch');
+  const blackout = document.getElementById('egg-blackout');
+
+  // Preload the secret image
+  eggImg.src = SECRET_CHAR.imageUrl;
+
+  // Reset button state
+  fixBtn.classList.remove('visible', 'pressed');
+  fakeCursor.style.display = 'none';
+  fakeCursor.classList.remove('clicking');
+
+  // Phase 1: Show overlay, animate diamond in
+  overlay.style.display = 'flex';
+  diamondWrap.style.display = 'flex';
+  reveal.style.display = 'none';
+  blackout.style.display = 'none';
+
+  // Force reflow, then start diamond animation
+  diamond.classList.remove('animate-in');
+  void diamond.offsetWidth;
+  diamond.classList.add('animate-in');
+  diamond.style.animation = 'diamondAppear 1.2s cubic-bezier(0.22,0.61,0.36,1) forwards, diamondPulse 2s ease-in-out infinite';
+  diamond.style.animationDelay = '0s, 1.2s';
+
+  // Phase 2: After diamond, glitch → show image + garbled text (1.5s)
+  setTimeout(() => {
+    // Fire glitch effect
+    glitch.classList.remove('fire');
+    void glitch.offsetWidth;
+    glitch.classList.add('fire');
+
+    diamondWrap.style.display = 'none';
+    reveal.style.display = 'flex';
+
+    // Phase 3: Button fades in after image is visible (1.2s later)
+    setTimeout(() => {
+      fixBtn.classList.add('visible');
+
+      // Phase 4: After button visible, fake cursor moves in and clicks (2.5s later)
+      setTimeout(() => {
+        // Get button position for cursor
+        const btnRect = fixBtn.getBoundingClientRect();
+        const cx = btnRect.left + btnRect.width / 2 - 14;
+        const cy = btnRect.top + btnRect.height / 2 - 14;
+
+        // Position cursor off-screen (top-right), then animate to button
+        fakeCursor.style.display = 'block';
+        fakeCursor.style.left = (cx + 180) + 'px';
+        fakeCursor.style.top = (cy - 140) + 'px';
+        fakeCursor.style.transition = 'none';
+
+        // Force reflow, then move cursor to button
+        void fakeCursor.offsetWidth;
+        fakeCursor.style.transition = 'left 0.6s cubic-bezier(0.25,0.46,0.45,0.94), top 0.6s cubic-bezier(0.25,0.46,0.45,0.94)';
+        fakeCursor.style.left = cx + 'px';
+        fakeCursor.style.top = cy + 'px';
+
+        // Click after cursor arrives
+        setTimeout(() => {
+          fakeCursor.classList.add('clicking');
+          fixBtn.classList.add('pressed');
+
+          // Phase 5: Glitch → black screen after click animation
+          setTimeout(() => {
+            // Second glitch burst
+            glitch.classList.remove('fire');
+            void glitch.offsetWidth;
+            glitch.classList.add('fire');
+
+            overlay.style.display = 'none';
+            fakeCursor.style.display = 'none';
+            blackout.style.display = 'flex';
+
+            // 5 seconds then return
+            setTimeout(() => {
+              blackout.style.display = 'none';
+              easterEggActive = false;
+            }, 5000);
+
+          }, 400);
+
+        }, 650);
+
+      }, 2000);  // wait 2s after button visible before cursor moves
+
+    }, 1200);  // button fades in 1.2s after image appears
+
+  }, 1500);
 }
 
 function openGacha() {
