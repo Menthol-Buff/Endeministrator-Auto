@@ -252,6 +252,208 @@
   }
 
   #status-bar span { opacity: 0.7; }
+
+  /* === GACHA OVERLAY === */
+  #gacha-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #gacha-overlay.show { display: flex; }
+
+  #gacha-modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    max-width: 720px;
+    width: 90vw;
+    max-height: 85vh;
+    overflow-y: auto;
+    text-align: center;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+    position: relative;
+  }
+
+  #gacha-close {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 24px;
+    cursor: pointer;
+    transition: color 0.15s;
+    line-height: 1;
+  }
+
+  #gacha-close:hover { color: #fff; }
+
+  #gacha-modal h2 {
+    font-size: 24px;
+    margin-bottom: 4px;
+    color: #fff;
+    letter-spacing: 2px;
+  }
+
+  #gacha-modal .gacha-subtitle {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 24px;
+    font-family: var(--font-mono, monospace);
+  }
+
+  #gacha-buttons {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    margin-bottom: 28px;
+  }
+
+  .gacha-btn {
+    padding: 12px 32px;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid;
+    transition: all 0.2s;
+    font-family: var(--font-sans, sans-serif);
+    letter-spacing: 1px;
+  }
+
+  .gacha-btn.once {
+    background: #1c2841;
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .gacha-btn.once:hover {
+    background: rgba(88,166,255,0.2);
+    box-shadow: 0 0 16px rgba(88,166,255,0.25);
+    transform: translateY(-1px);
+  }
+
+  .gacha-btn.ten {
+    background: #2a1f3d;
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
+    font-size: 18px;
+  }
+
+  .gacha-btn.ten:hover {
+    background: rgba(163,113,247,0.2);
+    box-shadow: 0 0 20px rgba(163,113,247,0.3);
+    transform: translateY(-1px);
+  }
+
+  .gacha-btn:active { transform: scale(0.97); }
+
+  #gacha-results {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    min-height: 60px;
+  }
+
+  .gacha-card {
+    width: 86px;
+    text-align: center;
+    animation: gachaReveal 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    border-radius: 10px;
+    padding: 3px;
+    background: var(--border);
+  }
+
+  .gacha-card.rarity-4 {
+    background: linear-gradient(135deg, #a855f7, #9333ea, #7c3aed, #6d28d9);
+  }
+
+  .gacha-card.rarity-5 {
+    background: linear-gradient(135deg, #fbbf24, #eab308, #d4a017, #b8860b);
+    box-shadow: 0 0 14px rgba(234,179,8,0.3);
+  }
+
+  .gacha-card.rarity-6 {
+    background: linear-gradient(135deg, #f87171, #ef4444, #dc2626, #b91c1c);
+    box-shadow: 0 0 18px rgba(239,68,68,0.4);
+    animation: gachaReveal 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+               rarityGlow6 2s ease-in-out infinite;
+  }
+
+  @keyframes gachaReveal {
+    0% { opacity: 0; transform: scale(0.3) rotateY(90deg); }
+    100% { opacity: 1; transform: scale(1) rotateY(0deg); }
+  }
+
+  @keyframes rarityGlow6 {
+    0%, 100% { box-shadow: 0 0 18px rgba(239,68,68,0.4); }
+    50% { box-shadow: 0 0 28px rgba(239,68,68,0.7), 0 0 40px rgba(239,68,68,0.25); }
+  }
+
+  .gacha-card img {
+    width: 80px;
+    height: 80px;
+    border-radius: 7px;
+    object-fit: cover;
+    background: var(--bg);
+    display: block;
+    transition: transform 0.15s;
+  }
+
+  .gacha-card img:hover {
+    transform: scale(1.08);
+  }
+
+  .gacha-card .card-name {
+    font-size: 11px;
+    color: #fff;
+    margin-top: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .gacha-card .card-stars {
+    font-size: 10px;
+    letter-spacing: 1px;
+    margin-top: 0;
+    line-height: 1;
+  }
+
+  .gacha-card.rarity-4 .card-stars { color: #a855f7; }
+  .gacha-card.rarity-5 .card-stars { color: #eab308; }
+  .gacha-card.rarity-6 .card-stars { color: #f87171; }
+
+  #gacha-modal-banner {
+    width: 100px;
+    height: 100px;
+    object-fit: contain;
+    margin-bottom: 4px;
+    filter: drop-shadow(0 0 8px rgba(210,153,29,0.4));
+  }
+
+  #gacha-pity {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: var(--font-mono, monospace);
+  }
+
+  #gacha-total {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: var(--font-mono, monospace);
+  }
 </style>
 </head>
 <body>
@@ -302,6 +504,12 @@
         <div class="tool-icon" style="background:rgba(255,255,255,0.08);">✋</div>
         <div><div class="tool-name">平移 Pan</div><div class="tool-desc">拖拽移动画布</div></div>
       </div>
+      <div class="tool-item" data-tool="gacha" id="tool-gacha">
+        <div class="tool-icon" style="background:rgba(210,153,29,0.15);">
+          <img src="Other Images/帝江号.png" alt="帝江号" style="width:22px;height:22px;object-fit:contain;">
+        </div>
+        <div><div class="tool-name">帝江号</div><div class="tool-desc">抽取角色</div></div>
+      </div>
     </div>
   </div>
 
@@ -337,6 +545,23 @@
     <span id="status-tool">工具: 放置节点 (Source)</span>
     <span id="status-pos">0, 0</span>
     <span id="status-zoom">100%</span>
+  </div>
+</div>
+
+<!-- GACHA OVERLAY -->
+<div id="gacha-overlay">
+  <div id="gacha-modal">
+    <button id="gacha-close">✕</button>
+    <img id="gacha-modal-banner" src="Other Images/帝江号.png" alt="帝江号">
+    <h2>🎴 帝江号</h2>
+    <div class="gacha-subtitle">抽取你的角色</div>
+    <div id="gacha-buttons">
+      <button class="gacha-btn once" id="gacha-once">抽一次</button>
+      <button class="gacha-btn ten" id="gacha-ten">抽十次</button>
+    </div>
+    <div id="gacha-results"></div>
+    <div id="gacha-pity">距上次 6★: <span id="gacha-pity-count">0</span> 抽</div>
+    <div id="gacha-total">累计抽取: <span id="gacha-count">0</span> 次</div>
   </div>
 </div>
 
@@ -1049,6 +1274,177 @@ document.querySelectorAll('.tool-item[data-tool]').forEach(item => {
     state.connectingFrom = null;
     state.connectingLine = null;
   });
+});
+
+// ============================================================
+// 帝江号 — Gacha System
+// ============================================================
+
+// Rarity pools per Rules of Gacha
+const CHARACTERS_6STAR = [
+  { file: "Arcane", name: "诀" },
+  { file: "Ardelia", name: "艾尔黛拉" },
+  { file: "Camille", name: "卡缪" },
+  { file: "Ember", name: "余烬" },
+  { file: "Gilberta", name: "洁尔佩塔" },
+  { file: "Laevatain", name: "莱万汀" },
+  { file: "Last_Rite", name: "别礼" },
+  { file: "Lifeng", name: "黎风" },
+  { file: "Liino", name: "梨诺" },
+  { file: "Mi_Fu", name: "弭弗" },
+  { file: "Pogranichnik", name: "骏卫" },
+  { file: "Rossi", name: "洛茜" },
+  { file: "Tangtang", name: "汤汤" },
+  { file: "Yvonne", name: "伊冯" },
+  { file: "Zhuang_Fangyi", name: "庄方宜" },
+];
+
+const CHARACTERS_5STAR = [
+  { file: "Alesh", name: "阿列什" },
+  { file: "Arclight", name: "弧光" },
+  { file: "Avywenna", name: "艾维文娜" },
+  { file: "Chen_Qianyu", name: "陈千语" },
+  { file: "Da_Pan", name: "大潘" },
+  { file: "Perlica", name: "佩丽卡" },
+  { file: "Snowshine", name: "昼雪" },
+  { file: "Wulfgard", name: "狼卫" },
+  { file: "Xaihi", name: "赛希" },
+];
+
+const CHARACTERS_4STAR = [
+  { file: "Akekuri", name: "秋栗" },
+  { file: "Antal", name: "安塔尔" },
+  { file: "Catcher", name: "卡契尔" },
+  { file: "Estella", name: "埃特拉" },
+  { file: "Fluorite", name: "萤石" },
+];
+
+const IMG_BASE = "Characters/Characters' Images/";
+let gachaTotalCount = 0;
+let sixStarPity = 0;  // pulls since last 6-star
+
+function gachaSingleDraw() {
+  sixStarPity++;
+
+  // Calculate 6-star rate with soft pity
+  let sixStarRate;
+  if (sixStarPity <= 65) {
+    sixStarRate = 0.008;  // 0.8% base
+  } else if (sixStarPity >= 80) {
+    sixStarRate = 1.0;    // 100% hard pity at pull 80
+  } else {
+    // Pull 66: 5.8%, then +5% per pull
+    sixStarRate = 0.058 + (sixStarPity - 66) * 0.05;
+  }
+
+  const roll = Math.random();
+  let pool, rarity, starsText;
+
+  if (roll < sixStarRate) {
+    // 6-star!
+    pool = CHARACTERS_6STAR;
+    rarity = 6;
+    starsText = '★★★★★★';
+    sixStarPity = 0;  // reset pity
+  } else {
+    // Remaining probability: 5-star 8% / (8%+91.2%) ≈ 8.06%, 4-star ≈ 91.94%
+    const remainingRoll = Math.random();
+    if (remainingRoll < 8 / 99.2) {
+      pool = CHARACTERS_5STAR;
+      rarity = 5;
+      starsText = '★★★★★';
+    } else {
+      pool = CHARACTERS_4STAR;
+      rarity = 4;
+      starsText = '★★★★';
+    }
+  }
+
+  const char = pool[Math.floor(Math.random() * pool.length)];
+  return { ...char, rarity, starsText };
+}
+
+function gachaDraw(count) {
+  const resultsEl = document.getElementById('gacha-results');
+  resultsEl.innerHTML = '';
+
+  const characters = [];
+  for (let i = 0; i < count; i++) {
+    characters.push(gachaSingleDraw());
+  }
+
+  characters.forEach((char, i) => {
+    const card = document.createElement('div');
+    card.className = 'gacha-card rarity-' + char.rarity;
+    card.style.animationDelay = (i * 0.08) + 's';
+
+    const img = document.createElement('img');
+    img.src = IMG_BASE + char.file + '.webp';
+    img.alt = char.name;
+    img.title = char.name + ' (' + char.starsText + ')';
+    img.loading = 'lazy';
+
+    img.onerror = function() {
+      this.style.display = 'none';
+      const placeholder = document.createElement('div');
+      placeholder.style.cssText =
+        'width:80px;height:80px;border-radius:7px;' +
+        'display:flex;align-items:center;justify-content:center;font-size:28px;' +
+        'color:var(--text-dim);background:var(--bg);';
+      placeholder.textContent = '?';
+      card.insertBefore(placeholder, card.firstChild);
+    };
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'card-name';
+    nameEl.textContent = char.name;
+
+    const starsEl = document.createElement('div');
+    starsEl.className = 'card-stars';
+    starsEl.textContent = char.starsText;
+
+    card.appendChild(img);
+    card.appendChild(nameEl);
+    card.appendChild(starsEl);
+    resultsEl.appendChild(card);
+  });
+
+  gachaTotalCount += count;
+  document.getElementById('gacha-count').textContent = gachaTotalCount;
+  document.getElementById('gacha-pity-count').textContent = sixStarPity;
+}
+
+function openGacha() {
+  document.getElementById('gacha-overlay').classList.add('show');
+  document.getElementById('gacha-results').innerHTML =
+    '<div style="color:var(--text-dim);font-size:13px;width:100%;">点击按钮抽取角色</div>';
+  document.getElementById('gacha-pity-count').textContent = sixStarPity;
+}
+
+function closeGacha() {
+  document.getElementById('gacha-overlay').classList.remove('show');
+  document.querySelectorAll('.tool-item[data-tool]').forEach(el => el.classList.remove('active'));
+  document.getElementById('tool-pan').classList.add('active');
+  state.tool = 'pan';
+  document.getElementById('status-tool').textContent = '工具: 平移画布';
+}
+
+// Gacha overlay events
+document.getElementById('gacha-close').addEventListener('click', closeGacha);
+document.getElementById('gacha-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeGacha();
+});
+
+document.getElementById('gacha-once').addEventListener('click', () => gachaDraw(1));
+document.getElementById('gacha-ten').addEventListener('click', () => gachaDraw(10));
+
+// Toolbox: 帝江号
+document.getElementById('tool-gacha').addEventListener('click', () => {
+  document.querySelectorAll('.tool-item[data-tool]').forEach(el => el.classList.remove('active'));
+  document.getElementById('tool-gacha').classList.add('active');
+  document.getElementById('status-tool').textContent = '工具: 帝江号 — 抽卡';
+  state.tool = 'gacha';
+  openGacha();
 });
 
 // ---- Keyboard shortcuts ----
