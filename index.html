@@ -774,6 +774,152 @@
     50%  { opacity: 1; transform: translateY(-2px) scale(1.1); }
     100% { opacity: 1; transform: translateY(0) scale(1); }
   }
+
+  /* === ADMIN UPGRADE MODAL === */
+  #admin-upgrade-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.65);
+    backdrop-filter: blur(4px);
+    z-index: 95;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  #admin-upgrade-overlay.show { display: flex; }
+
+  #admin-upgrade-modal {
+    background: var(--surface);
+    border: 2px solid #d4af37;
+    border-radius: 14px;
+    padding: 28px 32px;
+    text-align: center;
+    min-width: 300px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6), 0 0 30px rgba(212,175,55,0.15);
+    animation: modalSlideIn 0.25s ease-out;
+  }
+  @keyframes modalSlideIn {
+    0% { opacity: 0; transform: translateY(-20px) scale(0.95); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  #admin-upgrade-modal h3 {
+    font-size: 20px;
+    color: #d4af37;
+    margin-bottom: 16px;
+    letter-spacing: 1px;
+  }
+  #admin-upgrade-modal .admin-info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 13px;
+    color: var(--text);
+    font-family: var(--font-mono, monospace);
+    border-bottom: 1px solid var(--border);
+  }
+  #admin-upgrade-modal .admin-info-row .info-label {
+    color: var(--text-dim);
+  }
+  #admin-upgrade-modal .admin-info-row .info-value {
+    color: #d4af37;
+    font-weight: 600;
+  }
+  #admin-upgrade-btn {
+    margin-top: 18px;
+    padding: 10px 36px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 2px solid #d4af37;
+    background: linear-gradient(135deg, #2d1f00, #1a1200);
+    color: #d4af37;
+    font-family: var(--font-sans, sans-serif);
+    letter-spacing: 1px;
+    transition: all 0.2s;
+  }
+  #admin-upgrade-btn:hover {
+    background: linear-gradient(135deg, #3d2a00, #2a1a00);
+    box-shadow: 0 0 20px rgba(212,175,55,0.4);
+    transform: translateY(-1px);
+  }
+  #admin-upgrade-btn:active { transform: scale(0.96); }
+  #admin-upgrade-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+  }
+  #admin-upgrade-close {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 22px;
+    cursor: pointer;
+    transition: color 0.15s;
+    line-height: 1;
+  }
+  #admin-upgrade-close:hover { color: #fff; }
+
+  /* === ADMIN FLOATING PANEL (hover) === */
+  #admin-float-panel {
+    position: absolute;
+    pointer-events: auto;
+    background: var(--surface);
+    border: 2px solid #d4af37;
+    border-radius: 10px;
+    padding: 12px 16px;
+    text-align: center;
+    min-width: 220px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.7), 0 0 18px rgba(212,175,55,0.2);
+    display: none;
+    z-index: 50;
+    transform: translate(-50%, 8px);
+  }
+  #admin-float-panel.visible { display: block; }
+  #admin-float-panel .float-title {
+    font-size: 13px;
+    color: #d4af37;
+    font-weight: 600;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+  }
+  #admin-float-panel .float-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    padding: 3px 0;
+    font-family: var(--font-mono, monospace);
+  }
+  #admin-float-panel .float-row .flabel { color: var(--text-dim); }
+  #admin-float-panel .float-row .fvalue { color: #d4af37; }
+  #admin-float-btn {
+    margin-top: 8px;
+    padding: 5px 20px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid #d4af37;
+    background: linear-gradient(135deg, #2d1f00, #1a1200);
+    color: #d4af37;
+    font-family: var(--font-sans, sans-serif);
+    transition: all 0.2s;
+    width: 100%;
+  }
+  #admin-float-btn:hover {
+    background: linear-gradient(135deg, #3d2a00, #2a1a00);
+    box-shadow: 0 0 14px rgba(212,175,55,0.35);
+  }
+  #admin-float-btn:active { transform: scale(0.96); }
+  #admin-float-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
 </style>
 </head>
 <body>
@@ -842,6 +988,14 @@
     <div class="context-item" data-action="properties">⚙️ 属性...</div>
   </div>
 
+  <div id="admin-float-panel">
+    <div class="float-title">⬆ 管理员升级</div>
+    <div class="float-row"><span class="flabel">等级</span><span class="fvalue" id="afp-level">0</span></div>
+    <div class="float-row"><span class="flabel">点击产出</span><span class="fvalue" id="afp-click">1</span></div>
+    <div class="float-row"><span class="flabel">升级费用</span><span class="fvalue" id="afp-cost">10</span></div>
+    <button id="admin-float-btn">⬆ 升级</button>
+  </div>
+
   <div id="status-bar">
     <span id="status-tool">工具: 平移画布</span>
     <span id="status-pos">0, 0</span>
@@ -897,6 +1051,27 @@
 <!-- EASTER EGG BLACKOUT -->
 <div id="egg-blackout">
   <div id="egg-real-text">好久不见<br>我会一直看着你的，一直。</div>
+</div>
+
+<!-- ADMIN UPGRADE OVERLAY -->
+<div id="admin-upgrade-overlay">
+  <div id="admin-upgrade-modal" style="position:relative;">
+    <button id="admin-upgrade-close">✕</button>
+    <h3>⬆ 管理员升级</h3>
+    <div class="admin-info-row">
+      <span class="info-label">当前等级</span>
+      <span class="info-value" id="admin-level-display">0</span>
+    </div>
+    <div class="admin-info-row">
+      <span class="info-label">每次点击产出</span>
+      <span class="info-value" id="admin-click-display">1</span>
+    </div>
+    <div class="admin-info-row">
+      <span class="info-label">升级费用</span>
+      <span class="info-value" id="admin-cost-display">10</span>
+    </div>
+    <button id="admin-upgrade-btn">⬆ 升级</button>
+  </div>
 </div>
 
 <script>
@@ -1475,10 +1650,11 @@ canvas.addEventListener('mousedown', (e) => {
 
   // Admin node click (always gives currency on left-click regardless of tool)
   if (e.button === 0 && isAdminNodeHit(world.x, world.y)) {
-    currency += 10;
+    const clickValue = getAdminClickValue(adminLevel);
+    currency += clickValue;
     saveCurrency();
     updateCurrencyDisplay();
-    addFloatingText('+10 合成玉', adminNode.x, adminNode.y - 40, '#d4af37', 16);
+    addFloatingText('+' + formatCurrency(clickValue) + ' 合成玉', adminNode.x, adminNode.y - 40, '#d4af37', 16);
     return;
   }
 
@@ -1545,6 +1721,15 @@ canvas.addEventListener('mousemove', (e) => {
   // Update status bar
   document.getElementById('status-pos').textContent =
     `${Math.round(world.x)}, ${Math.round(world.y)}`;
+
+  // Admin node hover → show floating upgrade panel
+  if (isAdminNodeHit(world.x, world.y) && !state.dragging) {
+    canvas.style.cursor = 'pointer';
+    const adminScreen = worldToScreen(adminNode.x, adminNode.y);
+    showAdminFloatPanel(adminScreen.x, adminScreen.y + adminNode.radius * state.camera.zoom + 12);
+  } else {
+    hideAdminFloatPanel();
+  }
 
   // Tooltip
   const node = findNodeAt(world.x, world.y);
@@ -1765,6 +1950,140 @@ const characterOwnership = (() => {
 })();
 const floatingTexts = []; // { text, worldX, worldY, offsetY, vy, alpha, life, maxLife, color, size }
 
+// ---- Number Formatting ----
+function getSuffix(index) {
+  // index 0='a', 25='z', 26='aa', 27='ab', ..., 701='zz', 702='aaa', ...
+  let result = '';
+  let n = index;
+  while (true) {
+    result = String.fromCharCode(97 + (n % 26)) + result;
+    n = Math.floor(n / 26) - 1;
+    if (n < 0) break;
+  }
+  return result;
+}
+
+function formatCurrency(n) {
+  if (n < 10000) return Math.floor(n).toString();
+  let value = n / 10000;
+  let suffixIndex = 0;
+  while (value >= 1000 && suffixIndex < 10000) {
+    value /= 1000;
+    suffixIndex++;
+  }
+  const suffix = getSuffix(suffixIndex);
+  if (value >= 100) return Math.floor(value) + suffix;
+  if (value >= 10) return value.toFixed(1) + suffix;
+  return value.toFixed(2) + suffix;
+}
+
+// ---- Admin Upgrade System ----
+let adminLevel = parseInt(localStorage.getItem('admin_level') || '0');
+
+function saveAdminLevel() {
+  localStorage.setItem('admin_level', String(adminLevel));
+}
+
+function getAdminClickValue(level) {
+  // Fibonacci: f(0)=1, f(1)=2, f(n)=f(n-1)+f(n-2)
+  if (level <= 0) return 1;
+  if (level === 1) return 2;
+  let a = 1, b = 2;
+  for (let i = 2; i <= level; i++) {
+    const next = a + b;
+    a = b;
+    b = next;
+  }
+  return b;
+}
+
+function getAdminUpgradeCost(currentLevel) {
+  // Level 0→1: 10, 1→2: 20, 2→3: 40, 3→4: 80, ...
+  return 10 * Math.pow(2, currentLevel);
+}
+
+function updateAdminUpgradeModal() {
+  const clickValue = getAdminClickValue(adminLevel);
+  const cost = getAdminUpgradeCost(adminLevel);
+
+  document.getElementById('admin-level-display').textContent = adminLevel;
+  document.getElementById('admin-click-display').textContent = formatCurrency(clickValue) + ' 合成玉';
+  document.getElementById('admin-cost-display').textContent = formatCurrency(cost) + ' 合成玉';
+
+  const btn = document.getElementById('admin-upgrade-btn');
+  if (currency < cost) {
+    btn.disabled = true;
+    btn.textContent = '⬆ 合成玉不足';
+  } else {
+    btn.disabled = false;
+    btn.textContent = '⬆ 升级 (' + formatCurrency(cost) + ' 合成玉)';
+  }
+}
+
+function performAdminUpgrade() {
+  const cost = getAdminUpgradeCost(adminLevel);
+  if (currency < cost) return;
+
+  currency -= cost;
+  adminLevel++;
+  saveCurrency();
+  saveAdminLevel();
+  updateCurrencyDisplay();
+  updateAdminUpgradeModal();
+  updateAdminFloatPanel();
+  addFloatingText('⬆ 管理员升级至 Lv.' + adminLevel, adminNode.x, adminNode.y - 40, '#d4af37', 18);
+}
+
+function openAdminUpgrade() {
+  closeGacha();
+  updateAdminUpgradeModal();
+  document.getElementById('admin-upgrade-overlay').classList.add('show');
+}
+
+function closeAdminUpgrade() {
+  document.getElementById('admin-upgrade-overlay').classList.remove('show');
+}
+
+function updateAdminFloatPanel() {
+  const clickValue = getAdminClickValue(adminLevel);
+  const cost = getAdminUpgradeCost(adminLevel);
+
+  document.getElementById('afp-level').textContent = adminLevel;
+  document.getElementById('afp-click').textContent = formatCurrency(clickValue) + ' 合成玉';
+  document.getElementById('afp-cost').textContent = formatCurrency(cost) + ' 合成玉';
+
+  const btn = document.getElementById('admin-float-btn');
+  if (currency < cost) {
+    btn.disabled = true;
+    btn.textContent = '⬆ 合成玉不足';
+  } else {
+    btn.disabled = false;
+    btn.textContent = '⬆ 升级 (' + formatCurrency(cost) + ' 合成玉)';
+  }
+}
+
+// Admin float panel hover state
+let adminFloatHovering = false;
+let adminFloatHideTimer = null;
+
+function showAdminFloatPanel(screenX, screenY) {
+  adminFloatHovering = true;
+  if (adminFloatHideTimer) { clearTimeout(adminFloatHideTimer); adminFloatHideTimer = null; }
+  updateAdminFloatPanel();
+  const panel = document.getElementById('admin-float-panel');
+  panel.style.left = screenX + 'px';
+  panel.style.top = screenY + 'px';
+  panel.classList.add('visible');
+}
+
+function hideAdminFloatPanel() {
+  adminFloatHovering = false;
+  adminFloatHideTimer = setTimeout(() => {
+    if (adminFloatHovering) return;
+    document.getElementById('admin-float-panel').classList.remove('visible');
+  }, 180);
+}
+
 // ---- Admin Node (管理员) ----
 const adminNode = { x: 0, y: 0, radius: 48 };
 let adminImageLoaded = false;
@@ -1779,10 +2098,11 @@ function saveCurrency() {
   localStorage.setItem('gacha_currency', String(currency));
 }
 function updateCurrencyDisplay() {
+  const formatted = formatCurrency(currency);
   const sidebarEl = document.getElementById('currency-display');
-  if (sidebarEl) sidebarEl.textContent = currency;
+  if (sidebarEl) sidebarEl.textContent = formatted;
   const gachaEl = document.getElementById('gacha-currency-display');
-  if (gachaEl) gachaEl.textContent = currency;
+  if (gachaEl) gachaEl.textContent = formatted;
 }
 
 function isAdminNodeHit(worldX, worldY) {
@@ -2091,6 +2411,7 @@ function triggerEasterEgg() {
 }
 
 function openGacha() {
+  closeAdminUpgrade();
   document.getElementById('gacha-overlay').classList.add('show');
   document.getElementById('gacha-results').innerHTML =
     '<div style="color:var(--text-dim);font-size:13px;width:100%;">点击按钮抽取角色</div>';
@@ -2114,6 +2435,27 @@ document.getElementById('gacha-overlay').addEventListener('click', function(e) {
 
 document.getElementById('gacha-once').addEventListener('click', () => gachaDraw(1));
 document.getElementById('gacha-ten').addEventListener('click', () => gachaDraw(10));
+
+// Admin upgrade overlay events
+document.getElementById('admin-upgrade-close').addEventListener('click', closeAdminUpgrade);
+document.getElementById('admin-upgrade-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeAdminUpgrade();
+});
+document.getElementById('admin-upgrade-btn').addEventListener('click', performAdminUpgrade);
+
+// Admin float panel events (hover interaction)
+document.getElementById('admin-float-panel').addEventListener('mouseenter', () => {
+  adminFloatHovering = true;
+  if (adminFloatHideTimer) { clearTimeout(adminFloatHideTimer); adminFloatHideTimer = null; }
+});
+document.getElementById('admin-float-panel').addEventListener('mouseleave', () => {
+  adminFloatHovering = false;
+  document.getElementById('admin-float-panel').classList.remove('visible');
+});
+document.getElementById('admin-float-btn').addEventListener('click', () => {
+  performAdminUpgrade();
+  updateAdminFloatPanel();
+});
 
 // Toolbox: 帝江号
 document.getElementById('tool-gacha').addEventListener('click', () => {
@@ -2155,6 +2497,11 @@ document.addEventListener('keydown', (e) => {
       }
       break;
     case 'Escape':
+      if (document.getElementById('admin-upgrade-overlay').classList.contains('show')) {
+        closeAdminUpgrade();
+      } else if (document.getElementById('gacha-overlay').classList.contains('show')) {
+        closeGacha();
+      }
       state.connectingFrom = null;
       state.connectingLine = null;
       state.selectedNode = null;
