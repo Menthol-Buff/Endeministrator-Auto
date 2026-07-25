@@ -1624,7 +1624,8 @@ let easterEggClaimed = localStorage.getItem('egg_claimed') === '1'; // one-time 
 
 function gachaSingleDraw() {
   // Check easter egg first — independent of rarity system (one-time only)
-  if (!easterEggClaimed && Math.random() < EASTER_EGG_RATE) {
+  // Only available after 5000 total draws
+  if (!easterEggClaimed && gachaTotalCount >= 5000 && Math.random() < EASTER_EGG_RATE) {
     sixStarPity++; // still count toward pity
     easterEggClaimed = true;
     localStorage.setItem('egg_claimed', '1');
