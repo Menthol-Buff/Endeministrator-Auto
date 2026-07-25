@@ -365,6 +365,7 @@
   }
 
   .gacha-card {
+    position: relative;
     width: 86px;
     text-align: center;
     animation: gachaReveal 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
@@ -713,6 +714,66 @@
     0%   { opacity: 0; transform: translateY(20px); }
     100% { opacity: 1; transform: translateY(0); }
   }
+
+  /* === CURRENCY DISPLAY === */
+  .currency-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+    font-size: 12px;
+    color: var(--text);
+    font-family: var(--font-mono, monospace);
+  }
+  .currency-row img {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+  }
+  .currency-row .currency-amount {
+    font-weight: 600;
+    color: #d4af37;
+  }
+
+  /* === UPGRADE / DUPLICATE BADGE === */
+  .gacha-card .upgrade-badge {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    background: rgba(0,0,0,0.8);
+    color: #ffd700;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 4px;
+    z-index: 5;
+    font-family: var(--font-mono, monospace);
+    border: 1px solid rgba(255,215,0,0.5);
+    line-height: 1.4;
+  }
+  .gacha-card .upgrade-badge.maxed {
+    color: #f87171;
+    border-color: rgba(248,81,73,0.6);
+  }
+  .gacha-card .conversion-text {
+    position: absolute;
+    bottom: 28px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: #d4af37;
+    text-shadow: 0 0 4px rgba(0,0,0,0.9);
+    z-index: 5;
+    pointer-events: none;
+    animation: conversionPop 0.6s ease-out;
+  }
+  @keyframes conversionPop {
+    0%   { opacity: 0; transform: translateY(4px) scale(0.8); }
+    50%  { opacity: 1; transform: translateY(-2px) scale(1.1); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
 </style>
 </head>
 <body>
@@ -726,30 +787,6 @@
 
   <div id="toolbox">
     <div class="tool-group">
-      <div class="tool-group-label">🏗️ 产线节点</div>
-      <div class="tool-item active" data-node="source" data-tool="place">
-        <div class="tool-icon">📦</div>
-        <div><div class="tool-name">源代码 Source</div><div class="tool-desc">代码仓库入口</div></div>
-      </div>
-      <div class="tool-item" data-node="build" data-tool="place">
-        <div class="tool-icon">🔨</div>
-        <div><div class="tool-name">构建 Build</div><div class="tool-desc">编译 &amp; 打包</div></div>
-      </div>
-      <div class="tool-item" data-node="test" data-tool="place">
-        <div class="tool-icon">🧪</div>
-        <div><div class="tool-name">测试 Test</div><div class="tool-desc">单元 &amp; 集成测试</div></div>
-      </div>
-      <div class="tool-item" data-node="deploy" data-tool="place">
-        <div class="tool-icon">🚀</div>
-        <div><div class="tool-name">部署 Deploy</div><div class="tool-desc">发布到目标环境</div></div>
-      </div>
-      <div class="tool-item" data-node="notify" data-tool="place">
-        <div class="tool-icon">🔔</div>
-        <div><div class="tool-name">通知 Notify</div><div class="tool-desc">发送构建报告</div></div>
-      </div>
-    </div>
-
-    <div class="tool-group">
       <div class="tool-group-label">🔧 工具</div>
       <div class="tool-item" data-tool="connect" id="tool-connect">
         <div class="tool-icon" style="background:rgba(255,255,255,0.08);">🔗</div>
@@ -759,7 +796,7 @@
         <div class="tool-icon" style="background:rgba(248,81,73,0.1);">🗑️</div>
         <div><div class="tool-name">删除 Delete</div><div class="tool-desc">删除节点或连线</div></div>
       </div>
-      <div class="tool-item" data-tool="pan" id="tool-pan">
+      <div class="tool-item active" data-tool="pan" id="tool-pan">
         <div class="tool-icon" style="background:rgba(255,255,255,0.08);">✋</div>
         <div><div class="tool-name">平移 Pan</div><div class="tool-desc">拖拽移动画布</div></div>
       </div>
@@ -776,6 +813,11 @@
     <div class="stat-row"><span>节点数</span><span class="stat-value" id="stat-nodes">0</span></div>
     <div class="stat-row"><span>连线数</span><span class="stat-value" id="stat-edges">0</span></div>
     <div class="stat-row"><span>FPS</span><span class="stat-value" id="stat-fps">60</span></div>
+    <div class="currency-row">
+      <img src="Other Images/合成玉.png" alt="合成玉">
+      <span>合成玉:</span>
+      <span class="currency-amount" id="currency-display">0</span>
+    </div>
   </div>
 </div>
 
@@ -801,7 +843,7 @@
   </div>
 
   <div id="status-bar">
-    <span id="status-tool">工具: 放置节点 (Source)</span>
+    <span id="status-tool">工具: 平移画布</span>
     <span id="status-pos">0, 0</span>
     <span id="status-zoom">100%</span>
   </div>
@@ -815,12 +857,17 @@
     <h2>🎴 帝江号</h2>
     <div class="gacha-subtitle">抽取你的角色</div>
     <div id="gacha-buttons">
-      <button class="gacha-btn once" id="gacha-once">抽一次</button>
-      <button class="gacha-btn ten" id="gacha-ten">抽十次</button>
+      <button class="gacha-btn once" id="gacha-once">抽一次 (500)</button>
+      <button class="gacha-btn ten" id="gacha-ten">抽十次 (5000)</button>
     </div>
     <div id="gacha-results"></div>
     <div id="gacha-pity">距上次 6★: <span id="gacha-pity-count">0</span> 抽</div>
     <div id="gacha-total">累计抽取: <span id="gacha-count">0</span> 次</div>
+    <div class="currency-row" style="justify-content:center;margin-top:4px;">
+      <img src="Other Images/合成玉.png" alt="合成玉" style="width:18px;height:18px;">
+      <span>合成玉:</span>
+      <span class="currency-amount" id="gacha-currency-display">0</span>
+    </div>
   </div>
 </div>
 
@@ -892,7 +939,7 @@ const state = {
   camera: { x: 0, y: 0, zoom: 1 },
 
   // Interaction
-  tool: 'place',         // 'place' | 'connect' | 'delete' | 'pan'
+  tool: 'pan',         // 'place' | 'connect' | 'delete' | 'pan'
   placeNodeType: 'source',
   hoveredNode: null,
   selectedNode: null,
@@ -1197,6 +1244,72 @@ function drawParticles() {
   }
 }
 
+function drawAdminNode() {
+  const s = worldToScreen(adminNode.x, adminNode.y);
+  const r = adminNode.radius * state.camera.zoom;
+
+  // Pulsing glow
+  const pulse = Math.sin(performance.now() / 600) * 0.3 + 0.7;
+  ctx.shadowColor = '#d4af37';
+  ctx.shadowBlur = 15 * pulse * state.camera.zoom;
+
+  // Background circle
+  const grad = ctx.createRadialGradient(s.x, s.y, r * 0.2, s.x, s.y, r);
+  grad.addColorStop(0, '#2d1f00');
+  grad.addColorStop(1, '#1a1200');
+  ctx.fillStyle = grad;
+  ctx.strokeStyle = `rgba(212,175,55,${pulse * 0.8})`;
+  ctx.lineWidth = 2.5 * state.camera.zoom;
+  ctx.beginPath();
+  ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Character image inside circle
+  if (adminImageLoaded) {
+    const imgR = (r - 4 * state.camera.zoom) * 0.9;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, imgR, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(adminImage, s.x - imgR, s.y - imgR, imgR * 2, imgR * 2);
+    ctx.restore();
+  } else {
+    // Fallback text
+    ctx.fillStyle = '#d4af37';
+    ctx.font = `${14 * state.camera.zoom}px ${FONT_MONO}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('管', s.x, s.y);
+  }
+
+  // Label below
+  ctx.fillStyle = '#d4af37';
+  ctx.font = `${10 * state.camera.zoom}px ${FONT_MONO}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText('管理员', s.x, s.y + r + 4 * state.camera.zoom);
+}
+
+function drawFloatingTexts() {
+  for (let i = floatingTexts.length - 1; i >= 0; i--) {
+    const ft = floatingTexts[i];
+    const s = worldToScreen(ft.worldX, ft.worldY);
+
+    ctx.globalAlpha = ft.alpha;
+    ctx.fillStyle = ft.color || '#d4af37';
+    ctx.font = `bold ${ft.size * state.camera.zoom}px ${FONT_MONO}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 6 * state.camera.zoom;
+    ctx.fillText(ft.text, s.x, s.y + ft.offsetY);
+    ctx.shadowBlur = 0;
+  }
+  ctx.globalAlpha = 1;
+}
+
 function draw() {
   const rect = canvas.getBoundingClientRect();
   ctx.clearRect(0, 0, rect.width, rect.height);
@@ -1214,6 +1327,8 @@ function draw() {
   }
 
   drawParticles();
+  drawAdminNode();
+  drawFloatingTexts();
 }
 
 function drawMinimap() {
@@ -1308,6 +1423,17 @@ function update(dt) {
       }
     }
   }
+
+  // Update floating texts (currency gains, etc.)
+  for (let i = floatingTexts.length - 1; i >= 0; i--) {
+    const ft = floatingTexts[i];
+    ft.life -= dt;
+    ft.offsetY -= ft.vy * dt;
+    ft.alpha = Math.max(0, ft.life / ft.maxLife);
+    if (ft.life <= 0) {
+      floatingTexts.splice(i, 1);
+    }
+  }
 }
 
 function gameLoop(time) {
@@ -1346,6 +1472,15 @@ canvas.addEventListener('mousedown', (e) => {
   const pos = getEventPos(e);
   const world = screenToWorld(pos.x, pos.y);
   const node = findNodeAt(world.x, world.y);
+
+  // Admin node click (always gives currency on left-click regardless of tool)
+  if (e.button === 0 && isAdminNodeHit(world.x, world.y)) {
+    currency += 10;
+    saveCurrency();
+    updateCurrencyDisplay();
+    addFloatingText('+10 合成玉', adminNode.x, adminNode.y - 40, '#d4af37', 16);
+    return;
+  }
 
   // Right click → context menu
   if (e.button === 2) {
@@ -1622,6 +1757,49 @@ let sixStarPity = 0;  // pulls since last 6-star
 let easterEggActive = false; // prevent concurrent easter egg triggers
 let easterEggClaimed = localStorage.getItem('egg_claimed') === '1'; // one-time only
 
+// ---- Currency & Ownership State ----
+let currency = parseInt(localStorage.getItem('gacha_currency') || '0');
+const characterOwnership = (() => {
+  try { return JSON.parse(localStorage.getItem('gacha_ownership') || '{}'); }
+  catch (e) { return {}; }
+})();
+const floatingTexts = []; // { text, worldX, worldY, offsetY, vy, alpha, life, maxLife, color, size }
+
+// ---- Admin Node (管理员) ----
+const adminNode = { x: 0, y: 0, radius: 48 };
+let adminImageLoaded = false;
+const adminImage = new Image();
+adminImage.src = "Characters/Characters' Images/Endministrator.webp";
+adminImage.onload = () => { adminImageLoaded = true; };
+
+function saveOwnership() {
+  localStorage.setItem('gacha_ownership', JSON.stringify(characterOwnership));
+}
+function saveCurrency() {
+  localStorage.setItem('gacha_currency', String(currency));
+}
+function updateCurrencyDisplay() {
+  const sidebarEl = document.getElementById('currency-display');
+  if (sidebarEl) sidebarEl.textContent = currency;
+  const gachaEl = document.getElementById('gacha-currency-display');
+  if (gachaEl) gachaEl.textContent = currency;
+}
+
+function isAdminNodeHit(worldX, worldY) {
+  const dx = worldX - adminNode.x;
+  const dy = worldY - adminNode.y;
+  return Math.hypot(dx, dy) < adminNode.radius + 4;
+}
+
+function addFloatingText(text, worldX, worldY, color, size) {
+  floatingTexts.push({
+    text, worldX, worldY, offsetY: 0,
+    vy: 40 + Math.random() * 20,
+    alpha: 1, life: 1.5, maxLife: 1.5,
+    color: color || '#d4af37', size: size || 16,
+  });
+}
+
 function gachaSingleDraw() {
   // Check easter egg first — independent of rarity system (one-time only)
   // Only available after 5000 total draws
@@ -1667,11 +1845,46 @@ function gachaSingleDraw() {
   }
 
   const char = pool[Math.floor(Math.random() * pool.length)];
-  return { ...char, rarity, starsText, isEasterEgg: false };
+  const owned = characterOwnership[char.file];
+
+  if (owned) {
+    if (owned.level < 5) {
+      // Duplicate — upgrade
+      owned.level++;
+      saveOwnership();
+      return { ...char, rarity, starsText, isEasterEgg: false, isDuplicate: true, newLevel: owned.level, isNew: false, isConversion: false };
+    } else {
+      // Maxed — convert to currency
+      const amounts = { 4: 10, 5: 50, 6: 100 };
+      const gain = amounts[rarity];
+      currency += gain;
+      saveCurrency();
+      updateCurrencyDisplay();
+      return { ...char, rarity, starsText, isEasterEgg: false, isDuplicate: true, newLevel: 5, isConversion: true, currencyGain: gain, isNew: false };
+    }
+  } else {
+    // First time obtaining this character
+    characterOwnership[char.file] = { level: 0 };
+    saveOwnership();
+    return { ...char, rarity, starsText, isEasterEgg: false, isDuplicate: false, isNew: true };
+  }
 }
+
+const GACHA_COST_PER_PULL = 500;
 
 function gachaDraw(count) {
   if (easterEggActive) return; // block draws during easter egg
+
+  const cost = count * GACHA_COST_PER_PULL;
+  if (currency < cost) {
+    const resultsEl = document.getElementById('gacha-results');
+    resultsEl.innerHTML = '<div style="color:var(--accent-red);font-size:13px;width:100%;">合成玉不足！</div>';
+    return;
+  }
+
+  currency -= cost;
+  saveCurrency();
+  updateCurrencyDisplay();
 
   const resultsEl = document.getElementById('gacha-results');
   resultsEl.innerHTML = '';
@@ -1703,6 +1916,27 @@ function gachaDraw(count) {
       card.className = 'gacha-card rarity-' + char.rarity;
     }
     card.style.animationDelay = (i * 0.08) + 's';
+
+    // Upgrade badge for duplicates
+    if (char.isDuplicate && !char.isEasterEgg) {
+      const badge = document.createElement('div');
+      if (char.isConversion) {
+        badge.className = 'upgrade-badge maxed';
+        badge.textContent = 'MAX';
+      } else {
+        badge.className = 'upgrade-badge';
+        badge.textContent = '+' + char.newLevel;
+      }
+      card.appendChild(badge);
+
+      // Conversion text (currency gained)
+      if (char.isConversion) {
+        const convText = document.createElement('div');
+        convText.className = 'conversion-text';
+        convText.textContent = '+' + char.currencyGain + ' 合成玉';
+        card.appendChild(convText);
+      }
+    }
 
     const img = document.createElement('img');
     if (char.isEasterEgg) {
@@ -1861,6 +2095,7 @@ function openGacha() {
   document.getElementById('gacha-results').innerHTML =
     '<div style="color:var(--text-dim);font-size:13px;width:100%;">点击按钮抽取角色</div>';
   document.getElementById('gacha-pity-count').textContent = sixStarPity;
+  updateCurrencyDisplay();
 }
 
 function closeGacha() {
@@ -1894,19 +2129,6 @@ document.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
   switch (e.key) {
-    case '1': case '2': case '3': case '4': case '5':
-      const types = Object.keys(NODE_TYPES);
-      const idx = parseInt(e.key) - 1;
-      if (idx < types.length) {
-        state.tool = 'place';
-        state.placeNodeType = types[idx];
-        document.querySelectorAll('.tool-item[data-tool]').forEach(el => el.classList.remove('active'));
-        const item = document.querySelector(`.tool-item[data-node="${types[idx]}"]`);
-        if (item) item.classList.add('active');
-        document.getElementById('status-tool').textContent =
-          `工具: 放置节点 (${NODE_TYPES[types[idx]].label})`;
-      }
-      break;
     case 'c':
       state.tool = 'connect';
       document.querySelectorAll('.tool-item[data-tool]').forEach(el => el.classList.remove('active'));
@@ -2068,7 +2290,9 @@ function createDemo() {
 
 // ---- Start ----
 resize();
-createDemo();
+state.camera = { x: 0, y: 0, zoom: 1 };
+updateCurrencyDisplay();
+document.getElementById('status-tool').textContent = '工具: 平移画布';
 requestAnimationFrame(gameLoop);
 </script>
 </body>
