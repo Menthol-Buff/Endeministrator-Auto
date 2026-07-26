@@ -2103,6 +2103,9 @@ function updateCurrencyDisplay() {
   if (sidebarEl) sidebarEl.textContent = formatted;
   const gachaEl = document.getElementById('gacha-currency-display');
   if (gachaEl) gachaEl.textContent = formatted;
+  // 每次合成玉数量变化时，重新检测管理员升级按钮状态
+  updateAdminUpgradeModal();
+  updateAdminFloatPanel();
 }
 
 function isAdminNodeHit(worldX, worldY) {
