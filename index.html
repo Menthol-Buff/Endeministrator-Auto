@@ -300,6 +300,178 @@
   .hud-group { }
   .hud-group.hidden { display: none; }
 
+  /* === FILTER PANEL (warehouse) === */
+  #filter-btn {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 16;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+  #filter-btn:hover { border-color: var(--text-dim); color: #fff; }
+  #filter-btn.active { border-color: #d4af37; color: #d4af37; }
+
+  #filter-panel {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 15;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    width: 200px;
+    max-height: calc(100vh - 120px);
+    display: none;
+    flex-direction: column;
+    overflow: visible;
+  }
+  #filter-panel.open { display: flex; }
+  #filter-panel .filter-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  #filter-panel .filter-title {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: var(--font-mono, monospace);
+    letter-spacing: 1px;
+  }
+  #filter-close {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 16px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  #filter-close:hover { color: #fff; }
+  #filter-panel .filter-options {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .filter-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-size: 12px;
+    color: var(--text);
+  }
+  .filter-option:hover { background: #1c2129; }
+  .filter-option .fo-check {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: 1.5px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .filter-option.selected .fo-check { border-color: #d4af37; color: #d4af37; }
+  .filter-option.selected.rarity-4 .fo-check { border-color: #a855f7; color: #a855f7; background: rgba(168,85,247,0.15); }
+  .filter-option.selected.rarity-5 .fo-check { border-color: #eab308; color: #eab308; background: rgba(234,179,8,0.15); }
+  .filter-option.selected.rarity-6 .fo-check { border-color: #f87171; color: #f87171; background: rgba(248,113,113,0.15); }
+  #filter-panel .filter-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .filter-list .filter-char {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s;
+    position: relative;
+    overflow: visible;
+    margin-right: 4px;
+  }
+  .filter-list .filter-char:hover { background: #1c2129; }
+  .filter-list .filter-char img {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1.5px solid var(--border);
+    flex-shrink: 0;
+  }
+  .filter-list .filter-char .fc-level {
+    font-size: 10px;
+    font-family: var(--font-mono, monospace);
+    color: #d4af37;
+    font-weight: 600;
+    min-width: 28px;
+    flex-shrink: 0;
+  }
+  .filter-list .filter-char .fc-prod {
+    font-size: 10px;
+    font-family: var(--font-mono, monospace);
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .filter-list .filter-char .fc-prod img {
+    width: 14px;
+    height: 14px;
+    border-radius: 0;
+    border: none;
+    object-fit: contain;
+  }
+  .filter-list .filter-char .fc-name {
+    font-size: 11px;
+    color: var(--text);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .filter-list .filter-char .fc-name.upgrade-hint {
+    color: #d4af37;
+    animation: nameToUpgrade 0.3s ease-out;
+  }
+  @keyframes nameToUpgrade {
+    0%   { transform: translateY(0); opacity: 1; }
+    40%  { transform: translateY(-8px); opacity: 0; }
+    60%  { transform: translateY(4px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+  .filter-list .filter-empty {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-align: center;
+    padding: 8px 0;
+  }
+
   /* === HUD === */
   #hud {
     position: absolute;
@@ -1050,7 +1222,27 @@
 <div id="main-area">
   <canvas id="game-canvas"></canvas>
 
-  <div id="hud-warehouse" class="hud-group"></div>
+  <div id="hud-warehouse" class="hud-group">
+    <button id="filter-btn" title="筛选">🔍</button>
+    <div id="filter-panel">
+      <div class="filter-header">
+        <span class="filter-title">🔍 筛选干员</span>
+        <button id="filter-close">✕</button>
+      </div>
+      <div class="filter-options">
+        <div class="filter-option selected rarity-4" data-rarity="4">
+          <span class="fo-check">✓</span> ★★★★ (4星)
+        </div>
+        <div class="filter-option rarity-5" data-rarity="5">
+          <span class="fo-check">✓</span> ★★★★★ (5星)
+        </div>
+        <div class="filter-option rarity-6" data-rarity="6">
+          <span class="fo-check">✓</span> ★★★★★★ (6星)
+        </div>
+      </div>
+      <div class="filter-list" id="filter-list"></div>
+    </div>
+  </div>
 
   <div id="hud-production" class="hud-group hidden"></div>
 
@@ -1384,12 +1576,150 @@ function syncWarehouseEntities() {
         radius: 30,
         wanderAngle: Math.random() * Math.PI * 2,
         wanderTimer: Math.random() * 3,
+        lastCollisionTime: 0,
       };
       newEntities.push(ent);
     }
   }
   warehouseEntities = newEntities;
 }
+
+// ---- Operator Upgrade Formulas ----
+function getOperatorBaseProduction(rarity) {
+  if (rarity === 6) return 3;
+  if (rarity === 5) return 2;
+  return 1;
+}
+
+function getOperatorProduction(rarity, upgLevel) {
+  const base = getOperatorBaseProduction(rarity);
+  const full = Math.floor(upgLevel / 10);
+  const rem = upgLevel % 10;
+  const completeSum = 5 * full * (full + 1);
+  const currentSum = rem * (full + 1);
+  return base + completeSum + currentSum;
+}
+
+function getOperatorUpgradeCost(rarity, upgLevel) {
+  const base = getOperatorBaseProduction(rarity);
+  return base * Math.pow(2, upgLevel);
+}
+
+function getOperatorRarity(charFile) {
+  if (CHARACTERS_6STAR.some(c => c.file === charFile)) return 6;
+  if (CHARACTERS_5STAR.some(c => c.file === charFile)) return 5;
+  return 4;
+}
+
+// Ensure all owned characters have upg field
+function migrateOwnership() {
+  for (const key of Object.keys(characterOwnership)) {
+    if (characterOwnership[key].upg === undefined) {
+      characterOwnership[key].upg = 0;
+    }
+  }
+  saveOwnership();
+}
+
+// ---- Operator Filter ----
+let filterRarity = 4; // single-select: 4, 5, or 6
+
+function openFilterPanel() {
+  document.getElementById('filter-panel').classList.add('open');
+  document.getElementById('filter-btn').style.display = 'none';
+  updateFilterList();
+}
+
+function closeFilterPanel() {
+  document.getElementById('filter-panel').classList.remove('open');
+  document.getElementById('filter-btn').style.display = 'flex';
+}
+
+function selectFilterRarity(rarity) {
+  filterRarity = rarity;
+  document.querySelectorAll('.filter-option').forEach(el => {
+    el.classList.toggle('selected', parseInt(el.dataset.rarity) === rarity);
+  });
+  updateFilterList();
+}
+
+function updateFilterList() {
+  const listEl = document.getElementById('filter-list');
+  if (!listEl) return;
+
+  const allChars = [];
+
+  for (const [charFile, data] of Object.entries(characterOwnership)) {
+    const rarity = getOperatorRarity(charFile);
+    if (rarity !== filterRarity) continue;
+
+    const name = CHARACTERS_6STAR.find(c => c.file === charFile)?.name ||
+                 CHARACTERS_5STAR.find(c => c.file === charFile)?.name ||
+                 CHARACTERS_4STAR.find(c => c.file === charFile)?.name || charFile;
+    const upg = data.upg || 0;
+    const prod = getOperatorProduction(rarity, upg);
+    const cost = getOperatorUpgradeCost(rarity, upg);
+    allChars.push({ charFile, name, rarity, level: data.level, upg, prod, cost });
+  }
+
+  allChars.sort((a, b) => a.name.localeCompare(b.name));
+
+  if (allChars.length === 0) {
+    listEl.innerHTML = '<div class="filter-empty">暂无该星级干员</div>';
+    return;
+  }
+
+  listEl.innerHTML = allChars.map(c => `
+    <div class="filter-char" data-file="${c.charFile}" data-cost="${c.cost}">
+      <img src="${IMG_BASE}${c.charFile}.webp" alt="${c.name}" onerror="this.style.display='none'">
+      <span class="fc-name" data-original="${c.name}">${c.name}</span>
+      <span class="fc-level">Lv.${c.upg}</span>
+      <span class="fc-prod" title="每次碰撞产出"><img src="Other Images/G5Icon.png" alt="">${formatCurrency(c.prod)}</span>
+    </div>
+  `).join('');
+
+  // Hover: animate name → "点击升级", click to upgrade
+  listEl.querySelectorAll('.filter-char').forEach(row => {
+    const nameEl = row.querySelector('.fc-name');
+    const original = nameEl.dataset.original;
+    const charFile = row.dataset.file;
+    const cost = parseInt(row.dataset.cost);
+
+    row.addEventListener('mouseenter', () => {
+      if (g5 >= cost) {
+        nameEl.textContent = '点击升级';
+        nameEl.classList.add('upgrade-hint');
+      }
+    });
+    row.addEventListener('mouseleave', () => {
+      nameEl.textContent = original;
+      nameEl.classList.remove('upgrade-hint');
+    });
+    row.addEventListener('click', () => {
+      if (g5 < cost) return;
+      g5 -= cost;
+      characterOwnership[charFile].upg = (characterOwnership[charFile].upg || 0) + 1;
+      saveG5();
+      saveOwnership();
+      updateCurrencyDisplay();
+      updateFilterList();
+      syncWarehouseEntities();
+    });
+  });
+}
+
+// Filter button: open panel
+document.getElementById('filter-btn').addEventListener('click', openFilterPanel);
+
+// Close button
+document.getElementById('filter-close').addEventListener('click', closeFilterPanel);
+
+// Filter option click
+document.querySelectorAll('.filter-option').forEach(opt => {
+  opt.addEventListener('click', () => {
+    selectFilterRarity(parseInt(opt.dataset.rarity));
+  });
+});
 
 function updateWarehouse(dt) {
   for (const ent of warehouseEntities) {
@@ -1442,7 +1772,7 @@ function updateWarehouse(dt) {
       }
     }
 
-    // Collision with admin — strong bounce away
+    // Collision with admin — strong bounce away + generate G5
     const collisionDist = adminNode.radius + ent.radius;
     if (distAdmin < collisionDist) {
       const nx = dxAdmin / distAdmin;
@@ -1453,6 +1783,17 @@ function updateWarehouse(dt) {
       // Strong bounce velocity
       ent.vx = -nx * WAREHOUSE_PHYSICS.MAX_SPEED;
       ent.vy = -ny * WAREHOUSE_PHYSICS.MAX_SPEED;
+      // Generate G5 (with cooldown)
+      const now = performance.now() / 1000;
+      if (!ent.lastCollisionTime || now - ent.lastCollisionTime > 1.0) {
+        ent.lastCollisionTime = now;
+        const upg = (characterOwnership[ent.charFile]?.upg || 0);
+        const prod = getOperatorProduction(ent.rarity, upg);
+        g5 += prod;
+        saveG5();
+        updateCurrencyDisplay();
+        addFloatingText('+' + formatCurrency(prod) + ' G5', ent.x, ent.y - 20, '#ffd700', 14);
+      }
     }
 
     // Apply forces
@@ -1785,7 +2126,8 @@ function drawWarehouse() {
     ctx.font = `bold ${9 * state.camera.zoom}px ${FONT_MONO}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(ent.level, s.x - r + badgeR, s.y - r + badgeR);
+    const upg = (characterOwnership[ent.charFile]?.upg || 0);
+    ctx.fillText(upg, s.x - r + badgeR, s.y - r + badgeR);
 
     // Name below
     ctx.fillStyle = '#c9d1d9';
@@ -2012,6 +2354,7 @@ function switchView(viewName) {
   // Sync warehouse entities when entering warehouse
   if (viewName === 'warehouse') {
     syncWarehouseEntities();
+    updateFilterList();
     state.camera = { x: 0, y: 0, zoom: 1 };
   }
 
@@ -2462,6 +2805,9 @@ function gachaDraw(count) {
   document.getElementById('gacha-count').textContent = gachaTotalCount;
   document.getElementById('gacha-pity-count').textContent = sixStarPity;
 
+  // Refresh filter list after gacha
+  updateFilterList();
+
   // Trigger easter egg animation after a brief pause
   if (triggeredEgg) {
     easterEggActive = true;
@@ -2663,6 +3009,7 @@ canvas.addEventListener('touchmove', (e) => {
 // ---- Start ----
 resize();
 state.camera = { x: 0, y: 0, zoom: 1 };
+migrateOwnership();
 updateCurrencyDisplay();
 // Initialize warehouse view
 switchView('warehouse');
