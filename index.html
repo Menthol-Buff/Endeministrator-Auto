@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Auto-Infinity — 自动化产线</title>
+<title>RAEF-A</title>
 <link rel="icon" href="Other Images/Icon.png?v=2" type="image/png">
 <style>
   :root {
@@ -64,6 +64,54 @@
     margin-top: 2px;
     font-family: var(--font-mono, monospace);
   }
+
+  /* === PAGE NAVIGATION === */
+  #page-nav {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  #page-nav .nav-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    padding: 0 4px;
+  }
+
+  .page-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+    border: 1px solid transparent;
+    margin-bottom: 4px;
+  }
+
+  .page-item:hover { background: #1c2129; }
+  .page-item.active {
+    background: #1c2841;
+    border-color: #d4af37;
+  }
+
+  .page-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+    background: rgba(212,175,55,0.1);
+  }
+  .page-item.active .page-icon { background: rgba(212,175,55,0.2); }
+
+  .page-name { font-size: 13px; font-weight: 500; }
 
   #toolbox {
     flex: 1;
@@ -247,6 +295,10 @@
     font-weight: 600;
     color: #d4af37;
   }
+
+  /* view-aware HUD groups */
+  .hud-group { }
+  .hud-group.hidden { display: none; }
 
   /* === HUD === */
   #hud {
@@ -954,6 +1006,14 @@
     cursor: not-allowed;
     box-shadow: none;
   }
+
+  /* === PRODUCTION VIEW === */
+  #hud-production .production-placeholder {
+    color: var(--text-dim);
+    font-size: 13px;
+    font-family: var(--font-mono, monospace);
+    letter-spacing: 1px;
+  }
 </style>
 </head>
 <body>
@@ -961,38 +1021,28 @@
 <!-- SIDEBAR -->
 <div id="sidebar">
   <div id="sidebar-header">
-    <h1>⚙️ Auto-Infinity</h1>
-    <div class="subtitle">Automated Pipeline Builder</div>
+    <h1><img src="Other Images/Icon.png" alt="" style="width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:6px;">RAEF</h1>
+    <div class="subtitle">| Revisionism<br>| Assemblyism<br>| Egalitarianism<br>| Functionalism</div>
   </div>
 
-  <div id="toolbox">
-    <div class="tool-group">
-      <div class="tool-group-label">🔧 工具</div>
-      <div class="tool-item" data-tool="connect" id="tool-connect">
-        <div class="tool-icon" style="background:rgba(255,255,255,0.08);">🔗</div>
-        <div><div class="tool-name">连线 Connect</div><div class="tool-desc">连接节点形成流水线</div></div>
-      </div>
-      <div class="tool-item" data-tool="delete" id="tool-delete">
-        <div class="tool-icon" style="background:rgba(248,81,73,0.1);">🗑️</div>
-        <div><div class="tool-name">删除 Delete</div><div class="tool-desc">删除节点或连线</div></div>
-      </div>
-      <div class="tool-item active" data-tool="pan" id="tool-pan">
-        <div class="tool-icon" style="background:rgba(255,255,255,0.08);">✋</div>
-        <div><div class="tool-name">平移 Pan</div><div class="tool-desc">拖拽移动画布</div></div>
-      </div>
-      <div class="tool-item" data-tool="gacha" id="tool-gacha">
-        <div class="tool-icon" style="background:rgba(210,153,29,0.15);">
-          <img src="Other Images/帝江号.png" alt="帝江号" style="width:22px;height:22px;object-fit:contain;">
-        </div>
-        <div><div class="tool-name">帝江号</div><div class="tool-desc">抽取角色</div></div>
-      </div>
+  <div id="page-nav">
+    <div class="nav-label">📋 页面</div>
+    <div class="page-item active" data-page="warehouse" id="page-warehouse">
+      <div class="page-icon">🏗️</div>
+      <div><div class="page-name">干员仓库</div></div>
+    </div>
+    <div class="page-item" data-page="production" id="page-production">
+      <div class="page-icon">🏭</div>
+      <div><div class="page-name">产线区块</div></div>
     </div>
   </div>
 
   <div id="sidebar-footer">
-    <div class="stat-row"><span>节点数</span><span class="stat-value" id="stat-nodes">0</span></div>
-    <div class="stat-row"><span>连线数</span><span class="stat-value" id="stat-edges">0</span></div>
     <div class="stat-row"><span>FPS</span><span class="stat-value" id="stat-fps">60</span></div>
+    <button class="hud-btn" id="btn-gacha-sidebar" style="width:100%;margin-top:8px;border-color:#d2991d;color:#d2991d;text-align:center;">
+      <img src="Other Images/帝江号.png" alt="帝江号" style="width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:4px;">
+      帝江号 抽卡
+    </button>
   </div>
 </div>
 
@@ -1000,11 +1050,9 @@
 <div id="main-area">
   <canvas id="game-canvas"></canvas>
 
-  <div id="hud">
-    <button class="hud-btn" id="btn-fit" title="适应画布">⊞ 重置视图</button>
-    <button class="hud-btn" id="btn-run" title="运行流水线">▶ 运行</button>
-    <button class="hud-btn" id="btn-clear" title="清空画布">✕ 清空</button>
-  </div>
+  <div id="hud-warehouse" class="hud-group"></div>
+
+  <div id="hud-production" class="hud-group hidden"></div>
 
   <div id="currency-hud">
     <div class="currency-card">
@@ -1017,17 +1065,6 @@
       <span class="cur-label">G5:</span>
       <span class="cur-amount" id="g5-display">0</span>
     </div>
-  </div>
-
-  <div id="minimap"><canvas id="minimap-canvas"></canvas></div>
-
-  <div id="tooltip"></div>
-
-  <div id="context-menu">
-    <div class="context-item" data-action="delete">🗑️ 删除节点</div>
-    <div class="context-item" data-action="duplicate">📋 复制节点</div>
-    <div class="context-sep"></div>
-    <div class="context-item" data-action="properties">⚙️ 属性...</div>
   </div>
 
   <div id="admin-float-panel">
@@ -1170,15 +1207,14 @@ const state = {
   edgeCounter: 0,
   fps: 60,
   running: false,
+
+  // View
+  currentView: 'warehouse', // 'warehouse' | 'production' | 'pipeline'
 };
 
 // ---- DOM refs ----
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
-const minimapCanvas = document.getElementById('minimap-canvas');
-const minimapCtx = minimapCanvas.getContext('2d');
-const tooltip = document.getElementById('tooltip');
-const contextMenu = document.getElementById('context-menu');
 const mainArea = document.getElementById('main-area');
 
 // ---- Resize ----
@@ -1282,8 +1318,174 @@ function pointToSegmentDist(px, py, ax, ay, bx, by) {
 }
 
 function updateStats() {
-  document.getElementById('stat-nodes').textContent = state.nodes.length;
-  document.getElementById('stat-edges').textContent = state.edges.length;
+  // Stats removed with pipeline page
+}
+
+// ============================================================
+// Warehouse Physics System
+// ============================================================
+const WAREHOUSE_PHYSICS = {
+  WANDER_FORCE: 40,
+  REPEL_FORCE: 30000,
+  REPEL_MIN_DIST: 90,
+  ATTRACT_FORCE: 0.6,
+  DAMPING: 0.97,
+  MAX_SPEED: 200,
+  BOUNDARY: 700,
+};
+
+let warehouseEntities = []; // { id, x, y, vx, vy, charFile, charName, level, rarity, image, radius, wanderAngle, wanderTimer }
+let entityIdCounter = 0;
+
+// Rarity colors for character border
+function getRarityColor(rarity) {
+  if (rarity === 6) return '#f87171';
+  if (rarity === 5) return '#eab308';
+  return '#a855f7';
+}
+
+function syncWarehouseEntities() {
+  const owned = characterOwnership;
+  const existingMap = new Map();
+  for (const ent of warehouseEntities) {
+    existingMap.set(ent.charFile, ent);
+  }
+
+  const newEntities = [];
+  for (const [charFile, data] of Object.entries(owned)) {
+    if (existingMap.has(charFile)) {
+      newEntities.push(existingMap.get(charFile));
+      existingMap.delete(charFile);
+    } else {
+      // Determine rarity by checking which pool this character is in
+      let rarity = 4;
+      if (CHARACTERS_6STAR.some(c => c.file === charFile)) rarity = 6;
+      else if (CHARACTERS_5STAR.some(c => c.file === charFile)) rarity = 5;
+
+      const img = new Image();
+      img.src = IMG_BASE + charFile + '.webp';
+
+      // Spawn at random position near admin
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 60 + Math.random() * 150;
+      const ent = {
+        id: 'op_' + (++entityIdCounter),
+        x: adminNode.x + Math.cos(angle) * dist,
+        y: adminNode.y + Math.sin(angle) * dist,
+        vx: (Math.random() - 0.5) * 60,
+        vy: (Math.random() - 0.5) * 60,
+        charFile,
+        charName: CHARACTERS_6STAR.find(c => c.file === charFile)?.name ||
+                  CHARACTERS_5STAR.find(c => c.file === charFile)?.name ||
+                  CHARACTERS_4STAR.find(c => c.file === charFile)?.name || charFile,
+        level: data.level,
+        rarity,
+        image: img,
+        radius: 30,
+        wanderAngle: Math.random() * Math.PI * 2,
+        wanderTimer: Math.random() * 3,
+      };
+      newEntities.push(ent);
+    }
+  }
+  warehouseEntities = newEntities;
+}
+
+function updateWarehouse(dt) {
+  for (const ent of warehouseEntities) {
+    let fx = 0, fy = 0;
+
+    // Wander: change direction every ~2-3 seconds
+    ent.wanderTimer += dt;
+    if (ent.wanderTimer > 2 + Math.random() * 0.1) {
+      ent.wanderTimer = 0;
+      ent.wanderAngle += (Math.random() - 0.5) * Math.PI;
+    }
+    fx += Math.cos(ent.wanderAngle) * WAREHOUSE_PHYSICS.WANDER_FORCE;
+    fy += Math.sin(ent.wanderAngle) * WAREHOUSE_PHYSICS.WANDER_FORCE;
+
+    // Attraction to admin (spring-like)
+    const dxAdmin = adminNode.x - ent.x;
+    const dyAdmin = adminNode.y - ent.y;
+    const distAdmin = Math.hypot(dxAdmin, dyAdmin) || 0.01;
+    fx += dxAdmin * WAREHOUSE_PHYSICS.ATTRACT_FORCE;
+    fy += dyAdmin * WAREHOUSE_PHYSICS.ATTRACT_FORCE;
+
+    // Repulsion from other entities
+    for (const other of warehouseEntities) {
+      if (other.id === ent.id) continue;
+      const dx = ent.x - other.x;
+      const dy = ent.y - other.y;
+      const dist = Math.hypot(dx, dy) || 0.01;
+      if (dist < WAREHOUSE_PHYSICS.REPEL_MIN_DIST) {
+        const force = WAREHOUSE_PHYSICS.REPEL_FORCE / (dist * dist + 1);
+        fx += (dx / dist) * force;
+        fy += (dy / dist) * force;
+      }
+      // Hard collision between operators
+      const opCollisionDist = ent.radius + other.radius;
+      if (dist < opCollisionDist) {
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const overlap = opCollisionDist - dist;
+        // Push both apart equally
+        ent.x += nx * overlap * 0.5;
+        ent.y += ny * overlap * 0.5;
+        other.x -= nx * overlap * 0.5;
+        other.y -= ny * overlap * 0.5;
+        // Strong bounce — overpower admin attraction
+        const bounceStrength = WAREHOUSE_PHYSICS.MAX_SPEED * 1.5;
+        ent.vx += nx * bounceStrength;
+        ent.vy += ny * bounceStrength;
+        other.vx -= nx * bounceStrength;
+        other.vy -= ny * bounceStrength;
+      }
+    }
+
+    // Collision with admin — strong bounce away
+    const collisionDist = adminNode.radius + ent.radius;
+    if (distAdmin < collisionDist) {
+      const nx = dxAdmin / distAdmin;
+      const ny = dyAdmin / distAdmin;
+      // Push entity outside admin radius
+      ent.x = adminNode.x - nx * collisionDist;
+      ent.y = adminNode.y - ny * collisionDist;
+      // Strong bounce velocity
+      ent.vx = -nx * WAREHOUSE_PHYSICS.MAX_SPEED;
+      ent.vy = -ny * WAREHOUSE_PHYSICS.MAX_SPEED;
+    }
+
+    // Apply forces
+    ent.vx += fx * dt;
+    ent.vy += fy * dt;
+
+    // Damping
+    const dampFactor = Math.pow(WAREHOUSE_PHYSICS.DAMPING, dt * 60);
+    ent.vx *= dampFactor;
+    ent.vy *= dampFactor;
+
+    // Speed cap
+    const speed = Math.hypot(ent.vx, ent.vy);
+    if (speed > WAREHOUSE_PHYSICS.MAX_SPEED) {
+      ent.vx = (ent.vx / speed) * WAREHOUSE_PHYSICS.MAX_SPEED;
+      ent.vy = (ent.vy / speed) * WAREHOUSE_PHYSICS.MAX_SPEED;
+    }
+
+    // Update position
+    ent.x += ent.vx * dt;
+    ent.y += ent.vy * dt;
+
+    // Soft boundary
+    const distFromCenter = Math.hypot(ent.x - adminNode.x, ent.y - adminNode.y);
+    if (distFromCenter > WAREHOUSE_PHYSICS.BOUNDARY) {
+      const nx = (ent.x - adminNode.x) / distFromCenter;
+      const ny = (ent.y - adminNode.y) / distFromCenter;
+      ent.x = adminNode.x + nx * WAREHOUSE_PHYSICS.BOUNDARY;
+      ent.y = adminNode.y + ny * WAREHOUSE_PHYSICS.BOUNDARY;
+      ent.vx -= nx * 30;
+      ent.vy -= ny * 30;
+    }
+  }
 }
 
 // ---- Drawing ----
@@ -1527,25 +1729,96 @@ function drawFloatingTexts() {
   ctx.globalAlpha = 1;
 }
 
-function draw() {
+function drawWarehouse() {
   const rect = canvas.getBoundingClientRect();
   ctx.clearRect(0, 0, rect.width, rect.height);
-
-  // Background
   ctx.fillStyle = '#0d1117';
   ctx.fillRect(0, 0, rect.width, rect.height);
 
   drawGrid();
-  drawEdges();
-  drawConnectingLine();
-
-  for (const node of state.nodes) {
-    drawNode(node);
-  }
-
-  drawParticles();
   drawAdminNode();
   drawFloatingTexts();
+
+  // Draw character entities
+  for (const ent of warehouseEntities) {
+    const s = worldToScreen(ent.x, ent.y);
+    const r = ent.radius * state.camera.zoom;
+    const rarityColor = getRarityColor(ent.rarity);
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.arc(s.x + 2, s.y + 2, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Character image in circle
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, r - 2, 0, Math.PI * 2);
+    ctx.clip();
+    if (ent.image.complete && ent.image.naturalWidth > 0) {
+      ctx.drawImage(ent.image, s.x - r + 2, s.y - r + 2, (r - 2) * 2, (r - 2) * 2);
+    } else {
+      // Fallback
+      ctx.fillStyle = '#1c2129';
+      ctx.fillRect(s.x - r + 2, s.y - r + 2, (r - 2) * 2, (r - 2) * 2);
+    }
+    ctx.restore();
+
+    // Border ring
+    ctx.strokeStyle = rarityColor;
+    ctx.lineWidth = 2 * state.camera.zoom;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Level badge (top-left)
+    const badgeR = 9 * state.camera.zoom;
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.strokeStyle = rarityColor;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(s.x - r + badgeR, s.y - r + badgeR, badgeR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#ffd700';
+    ctx.font = `bold ${9 * state.camera.zoom}px ${FONT_MONO}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(ent.level, s.x - r + badgeR, s.y - r + badgeR);
+
+    // Name below
+    ctx.fillStyle = '#c9d1d9';
+    ctx.font = `${10 * state.camera.zoom}px ${FONT_MONO}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(ent.charName, s.x, s.y + r + 4 * state.camera.zoom);
+  }
+}
+
+function drawProduction() {
+  const rect = canvas.getBoundingClientRect();
+  ctx.clearRect(0, 0, rect.width, rect.height);
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, rect.width, rect.height);
+
+  drawGrid();
+
+  // Placeholder text
+  ctx.fillStyle = '#484f58';
+  ctx.font = `bold ${20 * state.camera.zoom}px ${FONT_MONO}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('产线区块 — 施工中', rect.width / 2, rect.height / 2);
+
+  ctx.fillStyle = '#30363d';
+  ctx.font = `${12 * state.camera.zoom}px ${FONT_MONO}`;
+  ctx.fillText('敬请期待', rect.width / 2, rect.height / 2 + 28 * state.camera.zoom);
+}
+
+function draw() {
+  if (state.currentView === 'warehouse') { drawWarehouse(); return; }
+  if (state.currentView === 'production') { drawProduction(); return; }
 }
 
 function drawMinimap() {
@@ -1605,40 +1878,9 @@ let fpsAccum = 0;
 let fpsFrames = 0;
 
 function update(dt) {
-  // Update particles
-  for (const p of state.particles) {
-    const edge = state.edges.find(e => e.id === p.edgeId);
-    if (!edge) continue;
-    const fn = state.nodes.find(n => n.id === edge.from);
-    const tn = state.nodes.find(n => n.id === edge.to);
-    if (!fn || !tn) continue;
-
-    const dist = Math.hypot(tn.x - fn.x, tn.y - fn.y);
-    p.progress += (p.speed * dt) / dist;
-  }
-
-  // Remove finished particles
-  state.particles = state.particles.filter(p => p.progress < 1);
-
-  // Spawn new particles when running
-  if (state.running) {
-    const now = performance.now();
-    if (now - lastParticleSpawn > CONFIG.PARTICLE_INTERVAL) {
-      lastParticleSpawn = now;
-      // Spawn at all source nodes
-      for (const node of state.nodes) {
-        if (NODE_TYPES[node.type].category === 'entry') {
-          const outgoing = state.edges.filter(e => e.from === node.id);
-          for (const edge of outgoing) {
-            state.particles.push({
-              edgeId: edge.id,
-              progress: 0,
-              speed: CONFIG.PARTICLE_SPEED + Math.random() * 40,
-            });
-          }
-        }
-      }
-    }
+  // Warehouse physics
+  if (state.currentView === 'warehouse') {
+    updateWarehouse(dt);
   }
 
   // Update floating texts (currency gains, etc.)
@@ -1671,11 +1913,6 @@ function gameLoop(time) {
   update(dt);
   draw();
 
-  // Minimap (throttled)
-  if (fpsFrames === 0) {
-    drawMinimap();
-  }
-
   requestAnimationFrame(gameLoop);
 }
 
@@ -1690,8 +1927,8 @@ canvas.addEventListener('mousedown', (e) => {
   const world = screenToWorld(pos.x, pos.y);
   const node = findNodeAt(world.x, world.y);
 
-  // Admin node click (always gives G5 on left-click regardless of tool)
-  if (e.button === 0 && isAdminNodeHit(world.x, world.y)) {
+  // Admin node click (gives G5 in warehouse and pipeline views)
+  if (e.button === 0 && isAdminNodeHit(world.x, world.y) && state.currentView !== 'production') {
     const clickValue = getAdminClickValue(adminLevel);
     g5 += clickValue;
     saveG5();
@@ -1700,60 +1937,11 @@ canvas.addEventListener('mousedown', (e) => {
     return;
   }
 
-  // Right click → context menu
-  if (e.button === 2) {
-    e.preventDefault();
-    if (node) {
-      state.contextTarget = node;
-      state.selectedNode = node;
-      contextMenu.style.display = 'block';
-      contextMenu.style.left = (e.clientX - mainArea.getBoundingClientRect().left) + 'px';
-      contextMenu.style.top = (e.clientY - mainArea.getBoundingClientRect().top) + 'px';
-    }
-    return;
-  }
-
   if (e.button !== 0) return;
 
-  // Left click
-  switch (state.tool) {
-    case 'place':
-      if (node) {
-        // Start dragging existing node
-        state.dragging = { type: 'node', id: node.id, ox: node.x, oy: node.y };
-        state.selectedNode = node;
-      } else {
-        // Place new node
-        const id = addNode(state.placeNodeType, world.x, world.y);
-        state.selectedNode = state.nodes.find(n => n.id === id);
-      }
-      break;
-
-    case 'connect':
-      if (node) {
-        state.connectingFrom = node.id;
-        state.connectingLine = { x1: node.x, y1: node.y, x2: world.x, y2: world.y };
-      } else {
-        const edge = findEdgeAt(world.x, world.y);
-        if (edge) removeEdge(edge.id);
-      }
-      break;
-
-    case 'delete':
-      if (node) {
-        removeNode(node.id);
-        state.selectedNode = null;
-      } else {
-        const edge = findEdgeAt(world.x, world.y);
-        if (edge) removeEdge(edge.id);
-      }
-      break;
-
-    case 'pan':
-      state.dragging = { type: 'pan', sx: e.clientX, sy: e.clientY, ox: state.camera.x, oy: state.camera.y };
-      canvas.classList.add('grabbing');
-      break;
-  }
+  // Left click — pan in all views
+  state.dragging = { type: 'pan', sx: e.clientX, sy: e.clientY, ox: state.camera.x, oy: state.camera.y };
+  canvas.classList.add('grabbing');
 });
 
 canvas.addEventListener('mousemove', (e) => {
@@ -1765,76 +1953,23 @@ canvas.addEventListener('mousemove', (e) => {
     `${Math.round(world.x)}, ${Math.round(world.y)}`;
 
   // Admin node hover → show floating upgrade panel
-  if (isAdminNodeHit(world.x, world.y) && !state.dragging) {
+  if (isAdminNodeHit(world.x, world.y) && !state.dragging && state.currentView !== 'production') {
     canvas.style.cursor = 'pointer';
     const adminScreen = worldToScreen(adminNode.x, adminNode.y);
     showAdminFloatPanel(adminScreen.x, adminScreen.y + adminNode.radius * state.camera.zoom + 12);
   } else {
     hideAdminFloatPanel();
-  }
-
-  // Tooltip
-  const node = findNodeAt(world.x, world.y);
-  if (node && state.tool !== 'pan' && !state.dragging) {
-    state.hoveredNode = node;
-    tooltip.style.display = 'block';
-    tooltip.style.left = (pos.x + 16) + 'px';
-    tooltip.style.top = (pos.y - 8) + 'px';
-    tooltip.textContent = `${NODE_TYPES[node.type].icon} ${node.label} (${node.id})`;
-    canvas.style.cursor = state.tool === 'delete' ? 'pointer' : 'grab';
-  } else {
-    state.hoveredNode = null;
-    tooltip.style.display = 'none';
-    if (state.tool === 'pan') canvas.style.cursor = 'grab';
-    else if (state.tool === 'delete') canvas.style.cursor = 'crosshair';
-    else if (state.tool === 'connect') canvas.style.cursor = 'crosshair';
-    else canvas.style.cursor = 'crosshair';
+    if (!state.dragging) canvas.style.cursor = 'crosshair';
   }
 
   // Dragging
-  if (state.dragging) {
-    if (state.dragging.type === 'node') {
-      const n = state.nodes.find(n => n.id === state.dragging.id);
-      if (n) {
-        n.x = snapToGrid(world.x);
-        n.y = snapToGrid(world.y);
-      }
-    } else if (state.dragging.type === 'pan') {
-      state.camera.x = state.dragging.ox - (e.clientX - state.dragging.sx) / state.camera.zoom;
-      state.camera.y = state.dragging.oy - (e.clientY - state.dragging.sy) / state.camera.zoom;
-    }
-  }
-
-  // Connecting line
-  if (state.connectingFrom) {
-    state.connectingLine = {
-      x1: state.nodes.find(n => n.id === state.connectingFrom)?.x ?? 0,
-      y1: state.nodes.find(n => n.id === state.connectingFrom)?.y ?? 0,
-      x2: world.x,
-      y2: world.y,
-    };
+  if (state.dragging && state.dragging.type === 'pan') {
+    state.camera.x = state.dragging.ox - (e.clientX - state.dragging.sx) / state.camera.zoom;
+    state.camera.y = state.dragging.oy - (e.clientY - state.dragging.sy) / state.camera.zoom;
   }
 });
 
 canvas.addEventListener('mouseup', (e) => {
-  const pos = getEventPos(e);
-  const world = screenToWorld(pos.x, pos.y);
-
-  // Finish connecting
-  if (state.connectingFrom) {
-    const targetNode = findNodeAt(world.x, world.y);
-    if (targetNode && targetNode.id !== state.connectingFrom) {
-      addEdge(state.connectingFrom, targetNode.id);
-    }
-    state.connectingFrom = null;
-    state.connectingLine = null;
-  }
-
-  // Finish dragging node
-  if (state.dragging?.type === 'node') {
-    state.dragging = null;
-  }
-
   // Finish pan
   if (state.dragging?.type === 'pan') {
     state.dragging = null;
@@ -1860,68 +1995,44 @@ canvas.addEventListener('wheel', (e) => {
 
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-// ---- Click outside closes context menu ----
-document.addEventListener('click', (e) => {
-  if (e.target !== canvas && !contextMenu.contains(e.target)) {
-    contextMenu.style.display = 'none';
-    state.contextTarget = null;
-  }
-});
+// ---- View Switching ----
+function switchView(viewName) {
+  state.currentView = viewName;
 
-// ---- Context menu actions ----
-contextMenu.addEventListener('click', (e) => {
-  const action = e.target.closest('.context-item')?.dataset.action;
-  if (!action) return;
+  // Update sidebar page nav active state
+  document.querySelectorAll('.page-item[data-page]').forEach(el => el.classList.remove('active'));
+  const pageItem = document.querySelector(`.page-item[data-page="${viewName}"]`);
+  if (pageItem) pageItem.classList.add('active');
 
-  const node = state.contextTarget;
-  if (!node) return;
+  // Show/hide HUD groups
+  document.querySelectorAll('.hud-group').forEach(el => el.classList.add('hidden'));
+  const hudEl = document.getElementById('hud-' + viewName);
+  if (hudEl) hudEl.classList.remove('hidden');
 
-  switch (action) {
-    case 'delete':
-      removeNode(node.id);
-      break;
-    case 'duplicate':
-      addNode(node.type, node.x + CONFIG.GRID_SIZE * 2, node.y + CONFIG.GRID_SIZE * 2);
-      break;
-    case 'properties':
-      // Placeholder for future property editor
-      break;
+  // Sync warehouse entities when entering warehouse
+  if (viewName === 'warehouse') {
+    syncWarehouseEntities();
+    state.camera = { x: 0, y: 0, zoom: 1 };
   }
 
-  contextMenu.style.display = 'none';
-  state.contextTarget = null;
-});
+  // Reset interaction state
+  state.dragging = null;
 
-// ---- Toolbox ----
-document.querySelectorAll('.tool-item[data-tool]').forEach(item => {
+  // Update status bar
+  if (viewName === 'warehouse') document.getElementById('status-tool').textContent = '页面: 干员仓库';
+  else if (viewName === 'production') document.getElementById('status-tool').textContent = '页面: 产线区块';
+
+  closeGacha();
+  closeAdminUpgrade();
+}
+
+// Page nav click handlers
+document.querySelectorAll('.page-item[data-page]').forEach(item => {
   item.addEventListener('click', () => {
-    // Update active state
-    document.querySelectorAll('.tool-item[data-tool]').forEach(el => el.classList.remove('active'));
-
-    const tool = item.dataset.tool;
-    const nodeType = item.dataset.node;
-
-    if (tool === 'place' && nodeType) {
-      state.tool = 'place';
-      state.placeNodeType = nodeType;
-      item.classList.add('active');
-      document.getElementById('status-tool').textContent = `工具: 放置节点 (${NODE_TYPES[nodeType].label})`;
-    } else if (tool === 'connect') {
-      state.tool = 'connect';
-      document.getElementById('tool-connect').classList.add('active');
-      document.getElementById('status-tool').textContent = '工具: 连线模式';
-    } else if (tool === 'delete') {
-      state.tool = 'delete';
-      document.getElementById('tool-delete').classList.add('active');
-      document.getElementById('status-tool').textContent = '工具: 删除模式';
-    } else if (tool === 'pan') {
-      state.tool = 'pan';
-      document.getElementById('tool-pan').classList.add('active');
-      document.getElementById('status-tool').textContent = '工具: 平移画布';
+    const page = item.dataset.page;
+    if (page !== state.currentView) {
+      switchView(page);
     }
-
-    state.connectingFrom = null;
-    state.connectingLine = null;
   });
 });
 
@@ -2473,11 +2584,14 @@ function openGacha() {
 
 function closeGacha() {
   document.getElementById('gacha-overlay').classList.remove('show');
-  document.querySelectorAll('.tool-item[data-tool]').forEach(el => el.classList.remove('active'));
-  document.getElementById('tool-pan').classList.add('active');
-  state.tool = 'pan';
-  document.getElementById('status-tool').textContent = '工具: 平移画布';
+  if (state.currentView === 'warehouse') document.getElementById('status-tool').textContent = '页面: 干员仓库';
+  else if (state.currentView === 'production') document.getElementById('status-tool').textContent = '页面: 产线区块';
 }
+
+// Sidebar 帝江号 button
+document.getElementById('btn-gacha-sidebar').addEventListener('click', () => {
+  openGacha();
+});
 
 // Gacha overlay events
 document.getElementById('gacha-close').addEventListener('click', closeGacha);
@@ -2509,129 +2623,20 @@ document.getElementById('admin-float-btn').addEventListener('click', () => {
   updateAdminFloatPanel();
 });
 
-// Toolbox: 帝江号
-document.getElementById('tool-gacha').addEventListener('click', () => {
-  document.querySelectorAll('.tool-item[data-tool]').forEach(el => el.classList.remove('active'));
-  document.getElementById('tool-gacha').classList.add('active');
-  document.getElementById('status-tool').textContent = '工具: 帝江号 — 抽卡';
-  state.tool = 'gacha';
-  openGacha();
-});
-
 // ---- Keyboard shortcuts ----
 document.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-  switch (e.key) {
-    case 'c':
-      state.tool = 'connect';
-      document.querySelectorAll('.tool-item[data-tool]').forEach(el => el.classList.remove('active'));
-      document.getElementById('tool-connect').classList.add('active');
-      document.getElementById('status-tool').textContent = '工具: 连线模式';
-      break;
-    case 'd':
-      state.tool = 'delete';
-      document.querySelectorAll('.tool-item[data-tool]').forEach(el => el.classList.remove('active'));
-      document.getElementById('tool-delete').classList.add('active');
-      document.getElementById('status-tool').textContent = '工具: 删除模式';
-      break;
-    case 'h':
-      state.tool = 'pan';
-      document.querySelectorAll('.tool-item[data-tool]').forEach(el => el.classList.remove('active'));
-      document.getElementById('tool-pan').classList.add('active');
-      document.getElementById('status-tool').textContent = '工具: 平移画布';
-      break;
-    case 'Delete':
-    case 'Backspace':
-      if (state.selectedNode) {
-        removeNode(state.selectedNode.id);
-        state.selectedNode = null;
-      }
-      break;
-    case 'Escape':
-      if (document.getElementById('admin-upgrade-overlay').classList.contains('show')) {
-        closeAdminUpgrade();
-      } else if (document.getElementById('gacha-overlay').classList.contains('show')) {
-        closeGacha();
-      }
-      state.connectingFrom = null;
-      state.connectingLine = null;
-      state.selectedNode = null;
-      break;
-    case 'f':
-      // Fit all nodes in view
-      fitView();
-      break;
+  if (e.key === 'Escape') {
+    if (document.getElementById('admin-upgrade-overlay').classList.contains('show')) {
+      closeAdminUpgrade();
+    } else if (document.getElementById('gacha-overlay').classList.contains('show')) {
+      closeGacha();
+    }
   }
 });
-
-// ---- HUD buttons ----
-document.getElementById('btn-fit').addEventListener('click', fitView);
-
-document.getElementById('btn-run').addEventListener('click', () => {
-  state.running = !state.running;
-  const btn = document.getElementById('btn-run');
-  if (state.running) {
-    btn.textContent = '⏸ 停止';
-    btn.classList.add('accent');
-    lastParticleSpawn = 0;
-  } else {
-    btn.textContent = '▶ 运行';
-    btn.classList.remove('accent');
-    state.particles = [];
-  }
-});
-
-document.getElementById('btn-clear').addEventListener('click', () => {
-  if (state.nodes.length === 0) return;
-  if (confirm('确定要清空画布上的所有节点和连线吗？')) {
-    state.nodes = [];
-    state.edges = [];
-    state.particles = [];
-    state.selectedNode = null;
-    state.connectingFrom = null;
-    state.connectingLine = null;
-    updateStats();
-  }
-});
-
-// ---- Minimap resize ----
-function resizeMinimap() {
-  const el = document.getElementById('minimap');
-  const w = el.clientWidth * devicePixelRatio;
-  const h = el.clientHeight * devicePixelRatio;
-  minimapCanvas.width = w;
-  minimapCanvas.height = h;
-}
-window.addEventListener('resize', resizeMinimap);
-resizeMinimap();
 
 // ---- Fit view ----
-function fitView() {
-  if (state.nodes.length === 0) {
-    state.camera = { x: 0, y: 0, zoom: 1 };
-    return;
-  }
-
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const n of state.nodes) {
-    minX = Math.min(minX, n.x); minY = Math.min(minY, n.y);
-    maxX = Math.max(maxX, n.x); maxY = Math.max(maxY, n.y);
-  }
-
-  const pad = 120;
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = rect.width / (maxX - minX + pad * 2);
-  const scaleY = rect.height / (maxY - minY + pad * 2);
-  const zoom = Math.min(scaleX, scaleY, CONFIG.MAX_ZOOM);
-
-  state.camera = {
-    x: (minX + maxX) / 2,
-    y: (minY + maxY) / 2,
-    zoom: Math.max(zoom, CONFIG.MIN_ZOOM),
-  };
-}
-
 // ---- Touch support ----
 let lastTouchDist = 0;
 canvas.addEventListener('touchstart', (e) => {
@@ -2655,43 +2660,13 @@ canvas.addEventListener('touchmove', (e) => {
   }
 }, { passive: true });
 
-// ---- Bootstrap with demo pipeline ----
-function createDemo() {
-  const gapX = 6 * CONFIG.GRID_SIZE;
-  const gapY = 5 * CONFIG.GRID_SIZE;
-  const baseY = 0;
-
-  // Row 1: Standard CI pipeline
-  const src1 = addNode('source', -gapX * 2, baseY);
-  const bld1 = addNode('build',  -gapX, baseY);
-  const tst1 = addNode('test',   0,     baseY);
-  const dep1 = addNode('deploy', +gapX, baseY);
-  const ntf1 = addNode('notify', +gapX * 2, baseY);
-  addEdge(src1, bld1);
-  addEdge(bld1, tst1);
-  addEdge(tst1, dep1);
-  addEdge(dep1, ntf1);
-
-  // Row 2: Branch pipeline
-  const src2 = addNode('source', -gapX * 2, baseY - gapY);
-  const bld2 = addNode('build',  -gapX, baseY - gapY);
-  const tst2a = addNode('test',   0,     baseY - gapY - CONFIG.GRID_SIZE);
-  const tst2b = addNode('test',   +gapX, baseY - gapY - CONFIG.GRID_SIZE);
-  const dep2 = addNode('deploy', +gapX * 2, baseY - gapY);
-  addEdge(src2, bld2);
-  addEdge(bld2, tst2a);
-  addEdge(bld2, tst2b);
-  addEdge(tst2a, dep2);
-  addEdge(tst2b, dep2);
-
-  fitView();
-}
-
 // ---- Start ----
 resize();
 state.camera = { x: 0, y: 0, zoom: 1 };
 updateCurrencyDisplay();
-document.getElementById('status-tool').textContent = '工具: 平移画布';
+// Initialize warehouse view
+switchView('warehouse');
+document.getElementById('status-tool').textContent = '页面: 干员仓库';
 requestAnimationFrame(gameLoop);
 </script>
 </body>
