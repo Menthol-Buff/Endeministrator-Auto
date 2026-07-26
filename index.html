@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Auto-Infinity — 自动化产线</title>
+<link rel="icon" href="Other Images/Icon.png?v=2" type="image/png">
 <style>
   :root {
     --bg: #0d1117;
@@ -213,6 +214,39 @@
 
   .context-item:hover { background: #1c2841; }
   .context-sep { height: 1px; background: var(--border); margin: 4px 0; }
+
+  /* === CURRENCY HUD (top-right) === */
+  #currency-hud {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    display: flex;
+    gap: 16px;
+    z-index: 15;
+  }
+  #currency-hud .currency-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono, monospace);
+    font-size: 13px;
+  }
+  #currency-hud .currency-card img {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+  }
+  #currency-hud .currency-card .cur-label {
+    color: var(--text-dim);
+  }
+  #currency-hud .currency-card .cur-amount {
+    font-weight: 600;
+    color: #d4af37;
+  }
 
   /* === HUD === */
   #hud {
@@ -959,11 +993,6 @@
     <div class="stat-row"><span>节点数</span><span class="stat-value" id="stat-nodes">0</span></div>
     <div class="stat-row"><span>连线数</span><span class="stat-value" id="stat-edges">0</span></div>
     <div class="stat-row"><span>FPS</span><span class="stat-value" id="stat-fps">60</span></div>
-    <div class="currency-row">
-      <img src="Other Images/合成玉.png" alt="合成玉">
-      <span>合成玉:</span>
-      <span class="currency-amount" id="currency-display">0</span>
-    </div>
   </div>
 </div>
 
@@ -975,6 +1004,19 @@
     <button class="hud-btn" id="btn-fit" title="适应画布">⊞ 重置视图</button>
     <button class="hud-btn" id="btn-run" title="运行流水线">▶ 运行</button>
     <button class="hud-btn" id="btn-clear" title="清空画布">✕ 清空</button>
+  </div>
+
+  <div id="currency-hud">
+    <div class="currency-card">
+      <img src="Other Images/合成玉.png" alt="合成玉">
+      <span class="cur-label">合成玉:</span>
+      <span class="cur-amount" id="currency-display">0</span>
+    </div>
+    <div class="currency-card">
+      <img src="Other Images/先驱协议券G5.png" alt="G5">
+      <span class="cur-label">G5:</span>
+      <span class="cur-amount" id="g5-display">0</span>
+    </div>
   </div>
 
   <div id="minimap"><canvas id="minimap-canvas"></canvas></div>
@@ -1648,13 +1690,13 @@ canvas.addEventListener('mousedown', (e) => {
   const world = screenToWorld(pos.x, pos.y);
   const node = findNodeAt(world.x, world.y);
 
-  // Admin node click (always gives currency on left-click regardless of tool)
+  // Admin node click (always gives G5 on left-click regardless of tool)
   if (e.button === 0 && isAdminNodeHit(world.x, world.y)) {
     const clickValue = getAdminClickValue(adminLevel);
-    currency += clickValue;
-    saveCurrency();
+    g5 += clickValue;
+    saveG5();
     updateCurrencyDisplay();
-    addFloatingText('+' + formatCurrency(clickValue) + ' 合成玉', adminNode.x, adminNode.y - 40, '#d4af37', 16);
+    addFloatingText('+' + formatCurrency(clickValue) + ' G5', adminNode.x, adminNode.y - 40, '#ffd700', 16);
     return;
   }
 
@@ -1944,6 +1986,7 @@ let easterEggClaimed = localStorage.getItem('egg_claimed') === '1'; // one-time 
 
 // ---- Currency & Ownership State ----
 let currency = parseInt(localStorage.getItem('gacha_currency') || '0');
+let g5 = parseInt(localStorage.getItem('g5_currency') || '0');
 const characterOwnership = (() => {
   try { return JSON.parse(localStorage.getItem('gacha_ownership') || '{}'); }
   catch (e) { return {}; }
@@ -2007,31 +2050,31 @@ function updateAdminUpgradeModal() {
   const cost = getAdminUpgradeCost(adminLevel);
 
   document.getElementById('admin-level-display').textContent = adminLevel;
-  document.getElementById('admin-click-display').textContent = formatCurrency(clickValue) + ' 合成玉';
-  document.getElementById('admin-cost-display').textContent = formatCurrency(cost) + ' 合成玉';
+  document.getElementById('admin-click-display').textContent = formatCurrency(clickValue) + ' G5';
+  document.getElementById('admin-cost-display').textContent = formatCurrency(cost) + ' G5';
 
   const btn = document.getElementById('admin-upgrade-btn');
-  if (currency < cost) {
+  if (g5 < cost) {
     btn.disabled = true;
-    btn.textContent = '⬆ 合成玉不足';
+    btn.textContent = '⬆ G5不足';
   } else {
     btn.disabled = false;
-    btn.textContent = '⬆ 升级 (' + formatCurrency(cost) + ' 合成玉)';
+    btn.textContent = '⬆ 升级 (' + formatCurrency(cost) + ' G5)';
   }
 }
 
 function performAdminUpgrade() {
   const cost = getAdminUpgradeCost(adminLevel);
-  if (currency < cost) return;
+  if (g5 < cost) return;
 
-  currency -= cost;
+  g5 -= cost;
   adminLevel++;
-  saveCurrency();
+  saveG5();
   saveAdminLevel();
   updateCurrencyDisplay();
   updateAdminUpgradeModal();
   updateAdminFloatPanel();
-  addFloatingText('⬆ 管理员升级至 Lv.' + adminLevel, adminNode.x, adminNode.y - 40, '#d4af37', 18);
+  addFloatingText('⬆ 管理员升级至 Lv.' + adminLevel, adminNode.x, adminNode.y - 40, '#ffd700', 18);
 }
 
 function openAdminUpgrade() {
@@ -2049,16 +2092,16 @@ function updateAdminFloatPanel() {
   const cost = getAdminUpgradeCost(adminLevel);
 
   document.getElementById('afp-level').textContent = adminLevel;
-  document.getElementById('afp-click').textContent = formatCurrency(clickValue) + ' 合成玉';
-  document.getElementById('afp-cost').textContent = formatCurrency(cost) + ' 合成玉';
+  document.getElementById('afp-click').textContent = formatCurrency(clickValue) + ' G5';
+  document.getElementById('afp-cost').textContent = formatCurrency(cost) + ' G5';
 
   const btn = document.getElementById('admin-float-btn');
-  if (currency < cost) {
+  if (g5 < cost) {
     btn.disabled = true;
-    btn.textContent = '⬆ 合成玉不足';
+    btn.textContent = '⬆ G5不足';
   } else {
     btn.disabled = false;
-    btn.textContent = '⬆ 升级 (' + formatCurrency(cost) + ' 合成玉)';
+    btn.textContent = '⬆ 升级 (' + formatCurrency(cost) + ' G5)';
   }
 }
 
@@ -2097,12 +2140,18 @@ function saveOwnership() {
 function saveCurrency() {
   localStorage.setItem('gacha_currency', String(currency));
 }
+function saveG5() {
+  localStorage.setItem('g5_currency', String(g5));
+}
 function updateCurrencyDisplay() {
-  const formatted = formatCurrency(currency);
+  const curFormatted = formatCurrency(currency);
+  const g5Formatted = formatCurrency(g5);
   const sidebarEl = document.getElementById('currency-display');
-  if (sidebarEl) sidebarEl.textContent = formatted;
+  if (sidebarEl) sidebarEl.textContent = curFormatted;
+  const g5El = document.getElementById('g5-display');
+  if (g5El) g5El.textContent = g5Formatted;
   const gachaEl = document.getElementById('gacha-currency-display');
-  if (gachaEl) gachaEl.textContent = formatted;
+  if (gachaEl) gachaEl.textContent = curFormatted;
   // 每次合成玉数量变化时，重新检测管理员升级按钮状态
   updateAdminUpgradeModal();
   updateAdminFloatPanel();
