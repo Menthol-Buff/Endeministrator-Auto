@@ -2251,77 +2251,117 @@ function drawProduction() {
 
   drawGrid();
 
-  // Draw placed devices
-  for (const dev of productionDevices) {
-    if (activeProdDevice === dev.id) continue; // skip active device (drawn separately)
-    const s = worldToScreen(dev.x, dev.y);
-    const r = 32 * state.camera.zoom;
-    const def = SHOP_DEFS.find(d => d.id === dev.deviceType);
-    if (!def) continue;
+  // Helper: draw a device body (rectangle + image + name) — used for placed, active, ghost
+  function drawDeviceBody(cx, cy, def, alpha, isGhost, isActive, canPlace) {
+    const hw = PROD_DEVICE_HALF_W * state.camera.zoom;
+    const hh = PROD_DEVICE_HALF_H * state.camera.zoom;
+    const rx = 6 * state.camera.zoom;
 
-    const img = getShopImage(def.id);
+    ctx.globalAlpha = alpha || 1;
 
     // Shadow
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath();
-    ctx.arc(s.x + 2, s.y + 2, r, 0, Math.PI * 2);
+    roundRectScreen(cx - hw + 3, cy - hh + 3, hw * 2, hh * 2, rx);
     ctx.fill();
 
-    // Image circle
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, r - 2, 0, Math.PI * 2);
-    ctx.clip();
-    if (img && img.complete && img.naturalWidth > 0) {
-      ctx.drawImage(img, s.x - r + 2, s.y - r + 2, (r - 2) * 2, (r - 2) * 2);
+    // Body fill & stroke
+    if (isGhost) {
+      ctx.fillStyle = canPlace ? 'rgba(28,40,65,0.5)' : 'rgba(42,18,21,0.5)';
+      ctx.strokeStyle = canPlace ? '#58a6ff' : '#f85149';
+      ctx.setLineDash([5 * state.camera.zoom, 3 * state.camera.zoom]);
     } else {
-      ctx.fillStyle = '#1c2129';
-      ctx.fillRect(s.x - r + 2, s.y - r + 2, (r - 2) * 2, (r - 2) * 2);
-      ctx.fillStyle = '#484f58';
-      ctx.font = `${18 * state.camera.zoom}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(def.icon, s.x, s.y);
+      ctx.fillStyle = '#161b22';
+      ctx.strokeStyle = isActive ? '#d4af37' : '#484f58';
     }
-    ctx.restore();
-
-    // Border
-    ctx.strokeStyle = '#30363d';
-    ctx.lineWidth = 2 * state.camera.zoom;
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+    ctx.lineWidth = (isActive ? 3 : 2) * state.camera.zoom;
+    roundRectScreen(cx - hw, cy - hh, hw * 2, hh * 2, rx);
+    ctx.fill();
     ctx.stroke();
+    ctx.setLineDash([]);
 
-    // Name
-    ctx.fillStyle = '#c9d1d9';
-    ctx.font = `${9 * state.camera.zoom}px ${FONT_MONO}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(def.name, s.x, s.y + r + 3 * state.camera.zoom);
-  }
-
-  // Draw active device (being repositioned)
-  if (activeProdDevice) {
-    const dev = productionDevices.find(d => d.id === activeProdDevice);
-    if (dev) {
-      const s = worldToScreen(dev.x, dev.y);
-      const r = 32 * state.camera.zoom;
-      const def = SHOP_DEFS.find(d => d.id === dev.deviceType);
-
-      // Pulse glow
+    // Active pulse glow
+    if (isActive) {
       const pulse = Math.sin(performance.now() / 300) * 0.4 + 0.6;
       ctx.shadowColor = '#d4af37';
       ctx.shadowBlur = 16 * pulse * state.camera.zoom;
-
-      ctx.strokeStyle = '#d4af37';
-      ctx.lineWidth = 3 * state.camera.zoom;
-      ctx.setLineDash([5 * state.camera.zoom, 3 * state.camera.zoom]);
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, r + 5, 0, Math.PI * 2);
+      roundRectScreen(cx - hw, cy - hh, hw * 2, hh * 2, rx);
       ctx.stroke();
-      ctx.setLineDash([]);
       ctx.shadowBlur = 0;
+    }
 
+    // Device image
+    const img = getBackpackImage(def.id);
+    const imgR = Math.min(hw * 0.38, hh * 0.42);
+    if (img && img.complete && img.naturalWidth > 0) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy - hh * 0.12, imgR, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(img, cx - imgR, cy - hh * 0.12 - imgR, imgR * 2, imgR * 2);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = '#484f58';
+      ctx.font = `${Math.floor(imgR)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(def.icon, cx, cy - hh * 0.12);
+    }
+
+    // Name below
+    ctx.fillStyle = isActive ? '#d4af37' : '#c9d1d9';
+    ctx.font = `${9 * state.camera.zoom}px ${FONT_MONO}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(def.name, cx, cy + hh + 3 * state.camera.zoom);
+    ctx.globalAlpha = 1;
+  }
+
+  // Helper: draw device ports (green squares on left, green triangles on right)
+  function drawDevicePorts(dev) {
+    const ports = getDevicePorts(dev);
+    const portR = 6 * state.camera.zoom;
+
+    // Input ports — green squares on LEFT edge
+    for (const p of ports.inputs) {
+      const ps = worldToScreen(p.x, p.y);
+      ctx.fillStyle = '#3fb950';
+      roundRectScreen(ps.x - portR, ps.y - portR, portR * 2, portR * 2, 2 * state.camera.zoom);
+      ctx.fill();
+    }
+
+    // Output ports — green triangles on RIGHT edge (pointing right →)
+    for (const p of ports.outputs) {
+      const ps = worldToScreen(p.x, p.y);
+      ctx.fillStyle = '#3fb950';
+      ctx.beginPath();
+      ctx.moveTo(ps.x, ps.y - portR);
+      ctx.lineTo(ps.x + portR * 1.6, ps.y);
+      ctx.lineTo(ps.x, ps.y + portR);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // ---- Draw placed devices ----
+  for (const dev of productionDevices) {
+    if (activeProdDevice === dev.id) continue;
+    const def = SHOP_DEFS.find(d => d.id === dev.deviceType);
+    if (!def) continue;
+    const s = worldToScreen(dev.x, dev.y);
+    drawDeviceBody(s.x, s.y, def, 1, false, false, false);
+    drawDevicePorts(dev);
+  }
+
+  // ---- Draw active device (being repositioned) ----
+  if (activeProdDevice) {
+    const dev = productionDevices.find(d => d.id === activeProdDevice);
+    if (dev) {
+      const def = SHOP_DEFS.find(d => d.id === dev.deviceType);
+      if (def) {
+        const as = worldToScreen(dev.x, dev.y);
+        drawDeviceBody(as.x, as.y, def, 1, false, true, false);
+        drawDevicePorts(dev);
+      }
     }
   }
 
@@ -2352,34 +2392,16 @@ function drawProduction() {
 
   // Draw drag ghost
   if (dragDevice) {
-    const s = worldToScreen(dragWorldPos.x, dragWorldPos.y);
-    const r = 32 * state.camera.zoom;
     const def = SHOP_DEFS.find(d => d.id === dragDevice.deviceType);
-    const canPlace = isPositionFree(dragWorldPos.x, dragWorldPos.y, null);
-
-    ctx.globalAlpha = 0.55;
-    ctx.fillStyle = canPlace ? '#1c2841' : '#2a1215';
-    ctx.strokeStyle = canPlace ? '#58a6ff' : '#f85149';
-    ctx.lineWidth = 2 * state.camera.zoom;
-    ctx.setLineDash([4 * state.camera.zoom, 3 * state.camera.zoom]);
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.setLineDash([]);
-
     if (def) {
-      ctx.fillStyle = '#58a6ff';
-      ctx.font = `${11 * state.camera.zoom}px ${FONT_MONO}`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillText(def.name, s.x, s.y + r + 3 * state.camera.zoom);
+      const s = worldToScreen(dragWorldPos.x, dragWorldPos.y);
+      const canPlace = isPositionFree(dragWorldPos.x, dragWorldPos.y, null);
+      drawDeviceBody(s.x, s.y, def, 0.55, true, false, canPlace);
     }
-    ctx.globalAlpha = 1;
   }
 
-  // Conveyor belt button (above backpack)
-  const cbX = 20, cbY = rect.height - 104, cbR = 22;
+  // Conveyor belt button (top-left corner)
+  const cbX = 36, cbY = 36, cbR = 22;
   ctx.fillStyle = state.conveyorMode ? '#1c2841' : '#161b22';
   ctx.strokeStyle = state.conveyorMode ? '#58a6ff' : '#30363d';
   ctx.lineWidth = 1.5;
@@ -2427,72 +2449,72 @@ function drawProduction() {
   // Backpack panel (bottom bar)
   const backpackItems = bpBtnItems; // reuse from button drawing above
   if (state.backpackOpen && backpackItems.length > 0) {
-    const panelY = rect.height - 110;
-    const panelH = 100;
+    const panelY = rect.height - 160;
+    const panelH = 150;
 
     // Panel background
-    ctx.fillStyle = 'rgba(22,27,34,0.95)';
+    ctx.fillStyle = 'rgba(22,27,34,0.97)';
     roundRectScreen(10, panelY, rect.width - 20, panelH, 10);
     ctx.fill();
-    ctx.strokeStyle = '#30363d';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#484f58';
+    ctx.lineWidth = 2;
     roundRectScreen(10, panelY, rect.width - 20, panelH, 10);
     ctx.stroke();
 
     // Panel title
     ctx.fillStyle = '#8b949e';
-    ctx.font = `bold ${10}px ${FONT_MONO}`;
+    ctx.font = `bold ${12}px ${FONT_MONO}`;
     ctx.textAlign = 'left';
-    ctx.fillText('📦 背包', 24, panelY + 16);
+    ctx.fillText('📦 背包', 24, panelY + 20);
 
     // Device cards
-    const cardW = 130, cardH = 70, gap = 12;
+    const cardW = 170, cardH = 115, gap = 18;
     const startX = 24;
     backpackItems.forEach((item, i) => {
       const cx = startX + i * (cardW + gap);
-      const cy = panelY + 26;
+      const cy = panelY + 30;
 
       // Card bg
       ctx.fillStyle = (dragDevice && dragDevice.deviceType === item.id) ? '#1c2841' : '#11151a';
-      ctx.strokeStyle = '#30363d';
-      ctx.lineWidth = 1;
-      roundRectScreen(cx, cy, cardW, cardH, 6);
+      ctx.strokeStyle = '#484f58';
+      ctx.lineWidth = 1.5;
+      roundRectScreen(cx, cy, cardW, cardH, 8);
       ctx.fill();
       ctx.stroke();
 
       // Image
-      const img = getShopImage(item.id);
-      const imgS = 28;
+      const img = getBackpackImage(item.id);
+      const imgS = 56;
       if (img && img.complete && img.naturalWidth > 0) {
         ctx.save();
         ctx.beginPath();
-        ctx.arc(cx + 22, cy + 22, imgS / 2, 0, Math.PI * 2);
+        ctx.arc(cx + 30, cy + 35, imgS / 2, 0, Math.PI * 2);
         ctx.clip();
-        ctx.drawImage(img, cx + 22 - imgS / 2, cy + 22 - imgS / 2, imgS, imgS);
+        ctx.drawImage(img, cx + 30 - imgS / 2, cy + 35 - imgS / 2, imgS, imgS);
         ctx.restore();
       } else {
         ctx.fillStyle = '#484f58';
-        ctx.font = `${14}px sans-serif`;
+        ctx.font = `${18}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(item.icon, cx + 22, cy + 22);
+        ctx.fillText(item.icon, cx + 30, cy + 35);
       }
 
       // Name
       ctx.fillStyle = '#fff';
-      ctx.font = `bold ${10}px ${FONT_MONO}`;
+      ctx.font = `bold ${12}px ${FONT_MONO}`;
       ctx.textAlign = 'left';
-      ctx.fillText(item.name, cx + 42, cy + 16);
+      ctx.fillText(item.name, cx + 74, cy + 24);
 
       // Available count
       ctx.fillStyle = '#3fb950';
-      ctx.font = `${10}px ${FONT_MONO}`;
-      ctx.fillText('×' + item.available, cx + 42, cy + 36);
+      ctx.font = `${11}px ${FONT_MONO}`;
+      ctx.fillText('×' + item.available, cx + 74, cy + 54);
 
       // Drag hint
       ctx.fillStyle = '#484f58';
-      ctx.font = `${8}px ${FONT_MONO}`;
-      ctx.fillText('拖拽放置', cx + 42, cy + 52);
+      ctx.font = `${9}px ${FONT_MONO}`;
+      ctx.fillText('拖拽放置', cx + 74, cy + 82);
     });
   }
 }
@@ -2513,25 +2535,27 @@ function roundRectScreen(x, y, w, h, r) {
 }
 
 function findProdDeviceAt(wx, wy) {
-  const threshold = 38;
+  let best = null, bestDist = Infinity;
   for (let i = productionDevices.length - 1; i >= 0; i--) {
     const d = productionDevices[i];
     if (activeProdDevice === d.id) continue;
-    const dist = Math.hypot(d.x - wx, d.y - wy);
-    if (dist < threshold) return d;
+    if (Math.abs(d.x - wx) < PROD_DEVICE_HALF_W && Math.abs(d.y - wy) < PROD_DEVICE_HALF_H) {
+      const dist = Math.hypot(d.x - wx, d.y - wy);
+      if (dist < bestDist) { best = d; bestDist = dist; }
+    }
   }
-  return null;
+  return best;
 }
 
 function findBackpackItemAt(screenX, screenY) {
   if (!state.backpackOpen) return null;
   const rect = canvas.getBoundingClientRect();
-  const panelY = rect.height - 110;
-  const cardW = 130, cardH = 70, gap = 12;
+  const panelY = rect.height - 160;
+  const cardW = 170, cardH = 115, gap = 18;
   const items = getBackpackItems();
   for (let i = 0; i < items.length; i++) {
     const cx = 24 + i * (cardW + gap);
-    const cy = panelY + 26;
+    const cy = panelY + 30;
     if (screenX >= cx && screenX <= cx + cardW &&
         screenY >= cy && screenY <= cy + cardH) {
       return items[i];
@@ -2540,19 +2564,63 @@ function findBackpackItemAt(screenX, screenY) {
   return null;
 }
 
-const PROD_DEVICE_RADIUS = 32;
-const PROD_DEVICE_MIN_DIST = PROD_DEVICE_RADIUS * 2 + 4; // no overlap + small gap
+const PROD_DEVICE_HALF_W = 2 * CONFIG.GRID_SIZE; // 64 — rectangle half-width (4 grid units wide)
+const PROD_DEVICE_HALF_H = 1.5 * CONFIG.GRID_SIZE; // 48 — rectangle half-height (3 grid units tall)
+const PROD_DEVICE_GAP = 8; // min gap between device rectangles
+
+function getDeviceRect(dev) {
+  return {
+    x: dev.x - PROD_DEVICE_HALF_W,
+    y: dev.y - PROD_DEVICE_HALF_H,
+    w: PROD_DEVICE_HALF_W * 2,
+    h: PROD_DEVICE_HALF_H * 2,
+  };
+}
+
+function rectsOverlap(a, b) {
+  return Math.abs(a.x - b.x) < (a.w / 2 + b.w / 2 + PROD_DEVICE_GAP) &&
+         Math.abs(a.y - b.y) < (a.h / 2 + b.h / 2 + PROD_DEVICE_GAP);
+}
 
 function isPositionFree(wx, wy, excludeId) {
+  const hw = PROD_DEVICE_HALF_W, hh = PROD_DEVICE_HALF_H;
   for (const d of productionDevices) {
     if (d.id === excludeId) continue;
-    if (Math.hypot(d.x - wx, d.y - wy) < PROD_DEVICE_MIN_DIST) return false;
+    if (Math.abs(d.x - wx) < hw * 2 + PROD_DEVICE_GAP && Math.abs(d.y - wy) < hh * 2 + PROD_DEVICE_GAP) return false;
   }
   if (activeProdDevice && activeProdDevice !== excludeId) {
     const ad = productionDevices.find(d => d.id === activeProdDevice);
-    if (ad && Math.hypot(ad.x - wx, ad.y - wy) < PROD_DEVICE_MIN_DIST) return false;
+    if (ad && Math.abs(ad.x - wx) < hw * 2 + PROD_DEVICE_GAP && Math.abs(ad.y - wy) < hh * 2 + PROD_DEVICE_GAP) return false;
   }
   return true;
+}
+
+// ---- Port computation ----
+function getDevicePorts(dev) {
+  const def = SHOP_DEFS.find(d => d.id === dev.deviceType);
+  if (!def || !def.ports) return { inputs: [], outputs: [] };
+  const hw = PROD_DEVICE_HALF_W;
+  const hh = PROD_DEVICE_HALF_H;
+
+  const inputs = [];
+  const nin = def.ports.in;
+  if (nin > 0) {
+    const spacing = (hh * 2) / (nin + 1);
+    for (let i = 0; i < nin; i++) {
+      inputs.push({ x: dev.x - hw, y: dev.y - hh + spacing * (i + 1), deviceId: dev.id, index: i, type: 'input' });
+    }
+  }
+
+  const outputs = [];
+  const nout = def.ports.out;
+  if (nout > 0) {
+    const spacing = (hh * 2) / (nout + 1);
+    for (let i = 0; i < nout; i++) {
+      outputs.push({ x: dev.x + hw, y: dev.y - hh + spacing * (i + 1), deviceId: dev.id, index: i, type: 'output' });
+    }
+  }
+
+  return { inputs, outputs };
 }
 
 function isInCollectZone(wx, wy) {
@@ -2566,8 +2634,7 @@ function isInCollectZone(wx, wy) {
 }
 
 function isConveyorBtnHit(screenX, screenY) {
-  const rect = canvas.getBoundingClientRect();
-  const bx = 20, by = rect.height - 104, br = 22;
+  const bx = 36, by = 36, br = 22;
   return Math.hypot(screenX - bx, screenY - by) < br + 4;
 }
 
@@ -2742,9 +2809,14 @@ canvas.addEventListener('mousedown', (e) => {
       return;
     }
 
+    // Conveyor mode — just pan (belt drawing not yet implemented)
+    if (state.conveyorMode && !state.backpackOpen) {
+      // fall through to pan
+    }
+
     // Placed device → start long-press or immediate activate
     const prodDev = findProdDeviceAt(world.x, world.y);
-    if (prodDev && !activeProdDevice) {
+    if (prodDev && !activeProdDevice && !state.conveyorMode) {
       longPressTarget = prodDev.id;
       longPressTimer = setTimeout(() => {
         if (longPressTarget) {
@@ -2821,7 +2893,7 @@ canvas.addEventListener('mousemove', (e) => {
     // Cursor for backpack items, devices, conveyor mode
     if (!dragDevice && !activeProdDevice && !state.dragging) {
       if (state.conveyorMode) {
-        canvas.style.cursor = 'cell';
+          canvas.style.cursor = 'cell';
       } else {
         const hoverDev = findProdDeviceAt(world.x, world.y);
         const hoverBP = state.backpackOpen ? findBackpackItemAt(pos.x, pos.y) : null;
@@ -3026,40 +3098,48 @@ const SHOP_DEFS = [
     name: '虚空源岩矿机',
     icon: '⛏',
     img: "Shop/Shops‘ Images/虚空源岩矿机.png",
+    thumbImg: "Machines In Bag/Images of Machines' Icons/缩略虚空源岩矿机.png",
     desc: '',
     costCurrency: 'g5',
     getCost: (level) => 100 * Math.pow(10, level), // 100, 1000, 1a, 10a, ...
     maxLevel: 999,
+    ports: { in: 0, out: 1 },
   },
   {
     id: 'craft_station',
     name: '制作站',
     icon: '🔧',
     img: "Shop/Shops‘ Images/制作站.png",
+    thumbImg: "Machines In Bag/Images of Machines' Icons/缩略制作站.png",
     desc: '',
     costCurrency: 'g5',
     getCost: (level) => 100 + 100 * level, // 100, 200, 300, 400, ...
     maxLevel: 999,
+    ports: { in: 3, out: 1 },
   },
   {
     id: 'hell_portal',
     name: '地狱狂潮传送门',
     icon: '🌀',
     img: "Shop/Shops‘ Images/地狱狂潮传送门.png",
+    thumbImg: "Machines In Bag/Images of Machines' Icons/缩略地狱狂潮传送门.png",
     desc: '',
     costCurrency: 'g5',
     getCost: (level) => 100,
     maxLevel: 1,
+    ports: { in: 1, out: 1 },
   },
   {
     id: 'signal_analyzer',
     name: '物质信号分析仪',
     icon: '📡',
     img: "Shop/Shops‘ Images/物质信号分析仪.png",
+    thumbImg: "Machines In Bag/Images of Machines' Icons/缩略物质信号分析仪.png",
     desc: '',
     costCurrency: 'jade',
     getCost: (level) => 1000,
     maxLevel: 1, // 永久限购1次
+    ports: { in: 3, out: 1 },
   },
 ];
 
@@ -3105,6 +3185,20 @@ const shopImages = {};
 
 function getShopImage(id) {
   return shopImages[id];
+}
+
+// Preload backpack thumbnail images (Machines In Bag icons)
+const backpackImages = {};
+(function preloadBackpackImages() {
+  SHOP_DEFS.forEach(def => {
+    const img = new Image();
+    img.src = def.thumbImg;
+    backpackImages[def.id] = img;
+  });
+})();
+
+function getBackpackImage(id) {
+  return backpackImages[id];
 }
 
 // 2×2 grid layout for the 4 rule-defined shop items
