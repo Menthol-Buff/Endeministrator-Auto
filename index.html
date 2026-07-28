@@ -18,9 +18,9 @@
     --accent-red: #f85149;
     --accent-purple: #a371f7;
     --grid: #21262d;
-    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
-    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --font-canvas-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    --font-mono: 'Cascadia Mono', 'Consolas', 'Source Code Pro', 'Courier New', 'Microsoft YaHei', monospace;
+    --font-sans: 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-canvas-mono: 'Consolas', 'Courier New', 'Microsoft YaHei', 'SimHei', monospace;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -33,6 +33,10 @@
     height: 100vh;
     display: flex;
     user-select: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-weight: 400;
   }
 
   /* === SIDEBAR === */
@@ -174,17 +178,6 @@
     border-top: 1px solid var(--border);
     font-size: 11px;
     color: var(--text-dim);
-  }
-
-  #sidebar-footer .stat-row {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 4px;
-  }
-
-  #sidebar-footer .stat-value {
-    font-family: var(--font-mono, monospace);
-    color: var(--text);
   }
 
   /* === MAIN CANVAS AREA === */
@@ -331,7 +324,7 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 12px;
-    width: 200px;
+    width: 265px;
     max-height: calc(100vh - 120px);
     display: none;
     flex-direction: column;
@@ -440,6 +433,23 @@
     gap: 2px;
     flex-shrink: 0;
   }
+  .filter-list .filter-char .fc-cost {
+    font-size: 10px;
+    font-family: var(--font-mono, monospace);
+    color: #d2991d;
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    flex-shrink: 0;
+    margin-left: 2px;
+  }
+  .filter-list .filter-char .fc-cost img {
+    width: 12px;
+    height: 12px;
+    border-radius: 0;
+    border: none;
+    object-fit: contain;
+  }
   .filter-list .filter-char .fc-prod img {
     width: 14px;
     height: 14px;
@@ -496,20 +506,6 @@
   .hud-btn:hover { border-color: var(--text-dim); }
   .hud-btn.accent { border-color: var(--accent); color: var(--accent); }
   .hud-btn.accent:hover { background: rgba(88,166,255,0.1); }
-
-  /* === STATUS BAR === */
-  #status-bar {
-    position: absolute;
-    bottom: 16px;
-    left: 16px;
-    font-size: 11px;
-    color: var(--text-dim);
-    font-family: var(--font-mono, monospace);
-    display: flex;
-    gap: 16px;
-  }
-
-  #status-bar span { opacity: 0.7; }
 
   /* === GACHA OVERLAY === */
   #gacha-overlay {
@@ -1259,7 +1255,6 @@
   </div>
 
   <div id="sidebar-footer">
-    <div class="stat-row"><span>FPS</span><span class="stat-value" id="stat-fps">60</span></div>
     <button class="hud-btn" id="btn-gacha-sidebar" style="width:100%;margin-top:8px;border-color:#d2991d;color:#d2991d;text-align:center;">
       <img src="Other Images/帝江号.png" alt="帝江号" style="width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:4px;">
       帝江号 抽卡
@@ -1295,9 +1290,7 @@
 
   <div id="hud-production" class="hud-group hidden"></div>
 
-  <div id="hud-shop" class="hud-group hidden">
-    <div class="shop-hint">💡 点击商品购买 · 悬停查看详情</div>
-  </div>
+  <div id="hud-shop" class="hud-group hidden"></div>
 
   <div id="auto-clicker-indicator">
     <span class="ac-icon">⚡</span>
@@ -1327,11 +1320,6 @@
     <button id="admin-float-btn">⬆ 升级</button>
   </div>
 
-  <div id="status-bar">
-    <span id="status-tool">工具: 平移画布</span>
-    <span id="status-pos">0, 0</span>
-    <span id="status-zoom">100%</span>
-  </div>
 </div>
 
 <!-- GACHA OVERLAY -->
@@ -1463,7 +1451,42 @@ const state = {
   // View
   currentView: 'warehouse', // 'warehouse' | 'production' | 'shop'
   shopHoveredId: null,  // which shop item is being hovered
+
+  // Production page
+  backpackOpen: false,
+  conveyorMode: false,
 };
+
+// ---- Production page state ----
+let productionDevices = (() => {
+  try { return JSON.parse(localStorage.getItem('prod_devices') || '[]'); }
+  catch (e) { return []; }
+})(); // { id, deviceType, x, y }
+let prodDeviceIdCounter = productionDevices.length;
+let dragDevice = null; // { deviceType } — being dragged from backpack
+let dragWorldPos = { x: 0, y: 0 }; // current drag position in world coords
+let activeProdDevice = null; // id of device being repositioned
+let activeProdOrigPos = null; // { x, y } original position before move
+let longPressTimer = null;
+let longPressTarget = null;
+
+function saveProductionDevices() {
+  localStorage.setItem('prod_devices', JSON.stringify(productionDevices));
+}
+
+function getBackpackItems() {
+  const items = [];
+  for (const def of SHOP_DEFS) {
+    const owned = getShopLevel(def.id);
+    if (owned <= 0) continue;
+    const placed = productionDevices.filter(d => d.deviceType === def.id).length;
+    const available = owned - placed;
+    if (available > 0) {
+      items.push({ ...def, owned, placed, available });
+    }
+  }
+  return items;
+}
 
 // ---- DOM refs ----
 const canvas = document.getElementById('game-canvas');
@@ -1501,6 +1524,17 @@ function worldToScreen(wx, wy) {
 
 function snapToGrid(val) {
   return Math.round(val / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
+}
+
+// Snap world position to nearest visible grid intersection
+function snapToGridIntersection(wx, wy) {
+  const s = worldToScreen(wx, wy);
+  const gs = CONFIG.GRID_SIZE * state.camera.zoom;
+  const ox = ((state.camera.x * state.camera.zoom) % gs + gs) % gs;
+  const oy = ((state.camera.y * state.camera.zoom) % gs + gs) % gs;
+  const sx = Math.round((s.x + ox) / gs) * gs - ox;
+  const sy = Math.round((s.y + oy) / gs) * gs - oy;
+  return screenToWorld(sx, sy);
 }
 
 // ---- Node / Edge CRUD ----
@@ -1645,6 +1679,9 @@ function syncWarehouseEntities() {
   warehouseEntities = newEntities;
 }
 
+const OPERATOR_MAX_LEVEL = 90;
+const ADMIN_MAX_LEVEL = 90;
+
 // ---- Operator Upgrade Formulas ----
 function getOperatorBaseProduction(rarity) {
   if (rarity === 6) return 3;
@@ -1736,6 +1773,7 @@ function updateFilterList() {
       <span class="fc-name" data-original="${c.name}">${c.name}</span>
       <span class="fc-level">Lv.${c.upg}</span>
       <span class="fc-prod" title="每次碰撞产出"><img src="Other Images/G5Icon.png" alt="">${formatCurrency(c.prod)}</span>
+      <span class="fc-cost" title="升级所需">⬆<img src="Other Images/G5Icon.png" alt="">${formatCurrency(c.cost)}</span>
     </div>
   `).join('');
 
@@ -1747,7 +1785,11 @@ function updateFilterList() {
     const cost = parseInt(row.dataset.cost);
 
     row.addEventListener('mouseenter', () => {
-      if (g5 >= cost) {
+      const upg = characterOwnership[charFile]?.upg || 0;
+      if (upg >= OPERATOR_MAX_LEVEL) {
+        nameEl.textContent = '已满级';
+        nameEl.classList.add('upgrade-hint');
+      } else if (g5 >= cost) {
         nameEl.textContent = '点击升级';
         nameEl.classList.add('upgrade-hint');
       }
@@ -1757,9 +1799,11 @@ function updateFilterList() {
       nameEl.classList.remove('upgrade-hint');
     });
     row.addEventListener('click', () => {
+      const upg = characterOwnership[charFile]?.upg || 0;
+      if (upg >= OPERATOR_MAX_LEVEL) return;
       if (g5 < cost) return;
       g5 -= cost;
-      characterOwnership[charFile].upg = (characterOwnership[charFile].upg || 0) + 1;
+      characterOwnership[charFile].upg = upg + 1;
       saveG5();
       saveOwnership();
       updateCurrencyDisplay();
@@ -2207,16 +2251,337 @@ function drawProduction() {
 
   drawGrid();
 
-  // Placeholder text
-  ctx.fillStyle = '#484f58';
-  ctx.font = `bold ${20 * state.camera.zoom}px ${FONT_MONO}`;
+  // Draw placed devices
+  for (const dev of productionDevices) {
+    if (activeProdDevice === dev.id) continue; // skip active device (drawn separately)
+    const s = worldToScreen(dev.x, dev.y);
+    const r = 32 * state.camera.zoom;
+    const def = SHOP_DEFS.find(d => d.id === dev.deviceType);
+    if (!def) continue;
+
+    const img = getShopImage(def.id);
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.arc(s.x + 2, s.y + 2, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Image circle
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, r - 2, 0, Math.PI * 2);
+    ctx.clip();
+    if (img && img.complete && img.naturalWidth > 0) {
+      ctx.drawImage(img, s.x - r + 2, s.y - r + 2, (r - 2) * 2, (r - 2) * 2);
+    } else {
+      ctx.fillStyle = '#1c2129';
+      ctx.fillRect(s.x - r + 2, s.y - r + 2, (r - 2) * 2, (r - 2) * 2);
+      ctx.fillStyle = '#484f58';
+      ctx.font = `${18 * state.camera.zoom}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(def.icon, s.x, s.y);
+    }
+    ctx.restore();
+
+    // Border
+    ctx.strokeStyle = '#30363d';
+    ctx.lineWidth = 2 * state.camera.zoom;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Name
+    ctx.fillStyle = '#c9d1d9';
+    ctx.font = `${9 * state.camera.zoom}px ${FONT_MONO}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(def.name, s.x, s.y + r + 3 * state.camera.zoom);
+  }
+
+  // Draw active device (being repositioned)
+  if (activeProdDevice) {
+    const dev = productionDevices.find(d => d.id === activeProdDevice);
+    if (dev) {
+      const s = worldToScreen(dev.x, dev.y);
+      const r = 32 * state.camera.zoom;
+      const def = SHOP_DEFS.find(d => d.id === dev.deviceType);
+
+      // Pulse glow
+      const pulse = Math.sin(performance.now() / 300) * 0.4 + 0.6;
+      ctx.shadowColor = '#d4af37';
+      ctx.shadowBlur = 16 * pulse * state.camera.zoom;
+
+      ctx.strokeStyle = '#d4af37';
+      ctx.lineWidth = 3 * state.camera.zoom;
+      ctx.setLineDash([5 * state.camera.zoom, 3 * state.camera.zoom]);
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r + 5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.shadowBlur = 0;
+
+    }
+  }
+
+  // Collect zone (visible when a device is active)
+  if (activeProdDevice) {
+    const dev = productionDevices.find(d => d.id === activeProdDevice);
+    const inZone = dev && isInCollectZone(dev.x, dev.y);
+    const zoneW = 140, zoneH = 44;
+    const zoneX = rect.width / 2;
+    const zoneY = rect.height - zoneH / 2 - 8;
+    const rx = 10;
+
+    ctx.fillStyle = inZone ? 'rgba(248,81,73,0.3)' : 'rgba(248,81,73,0.1)';
+    ctx.strokeStyle = '#f85149';
+    ctx.lineWidth = inZone ? 3 : 2;
+    if (!inZone) ctx.setLineDash([6, 3]);
+    roundRectScreen(zoneX - zoneW / 2, zoneY - zoneH / 2, zoneW, zoneH, rx);
+    ctx.fill();
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#f85149';
+    ctx.font = `bold 14px ${FONT_MONO}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(inZone ? '📥 松手收回' : '📥 收回', zoneX, zoneY);
+  }
+
+  // Draw drag ghost
+  if (dragDevice) {
+    const s = worldToScreen(dragWorldPos.x, dragWorldPos.y);
+    const r = 32 * state.camera.zoom;
+    const def = SHOP_DEFS.find(d => d.id === dragDevice.deviceType);
+    const canPlace = isPositionFree(dragWorldPos.x, dragWorldPos.y, null);
+
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = canPlace ? '#1c2841' : '#2a1215';
+    ctx.strokeStyle = canPlace ? '#58a6ff' : '#f85149';
+    ctx.lineWidth = 2 * state.camera.zoom;
+    ctx.setLineDash([4 * state.camera.zoom, 3 * state.camera.zoom]);
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    if (def) {
+      ctx.fillStyle = '#58a6ff';
+      ctx.font = `${11 * state.camera.zoom}px ${FONT_MONO}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(def.name, s.x, s.y + r + 3 * state.camera.zoom);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Conveyor belt button (above backpack)
+  const cbX = 20, cbY = rect.height - 104, cbR = 22;
+  ctx.fillStyle = state.conveyorMode ? '#1c2841' : '#161b22';
+  ctx.strokeStyle = state.conveyorMode ? '#58a6ff' : '#30363d';
+  ctx.lineWidth = 1.5;
+  roundRectScreen(cbX - cbR, cbY - cbR, cbR * 2, cbR * 2, 8);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = `16px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('产线区块 — 施工中', rect.width / 2, rect.height / 2);
+  ctx.fillText('⛓', cbX, cbY);
 
-  ctx.fillStyle = '#30363d';
-  ctx.font = `${12 * state.camera.zoom}px ${FONT_MONO}`;
-  ctx.fillText('敬请期待', rect.width / 2, rect.height / 2 + 28 * state.camera.zoom);
+  // E badge
+  ctx.fillStyle = '#58a6ff';
+  ctx.font = `bold 9px ${FONT_MONO}`;
+  ctx.fillText('E', cbX + 12, cbY - 10);
+
+  // Backpack button (bottom-left) — only show when panel is closed
+  const bpBtnItems = getBackpackItems();
+  if (bpBtnItems.length > 0 && !state.backpackOpen) {
+    const btnScreenX = 20;
+    const btnScreenY = rect.height - 60;
+
+    ctx.fillStyle = state.backpackOpen ? '#1c2841' : '#161b22';
+    ctx.strokeStyle = state.backpackOpen ? '#d4af37' : '#30363d';
+    ctx.lineWidth = 1.5;
+    const bx = btnScreenX, by = btnScreenY, br = 22;
+    roundRectScreen(bx - br, by - br, br * 2, br * 2, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#fff';
+    ctx.font = `18px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('📦', bx, by);
+
+    const totalAvail = bpBtnItems.reduce((s, i) => s + i.available, 0);
+    ctx.fillStyle = '#d4af37';
+    ctx.font = `bold 10px ${FONT_MONO}`;
+    ctx.fillText(totalAvail, bx + 12, by - 10);
+  }
+
+  // Backpack panel (bottom bar)
+  const backpackItems = bpBtnItems; // reuse from button drawing above
+  if (state.backpackOpen && backpackItems.length > 0) {
+    const panelY = rect.height - 110;
+    const panelH = 100;
+
+    // Panel background
+    ctx.fillStyle = 'rgba(22,27,34,0.95)';
+    roundRectScreen(10, panelY, rect.width - 20, panelH, 10);
+    ctx.fill();
+    ctx.strokeStyle = '#30363d';
+    ctx.lineWidth = 1;
+    roundRectScreen(10, panelY, rect.width - 20, panelH, 10);
+    ctx.stroke();
+
+    // Panel title
+    ctx.fillStyle = '#8b949e';
+    ctx.font = `bold ${10}px ${FONT_MONO}`;
+    ctx.textAlign = 'left';
+    ctx.fillText('📦 背包', 24, panelY + 16);
+
+    // Device cards
+    const cardW = 130, cardH = 70, gap = 12;
+    const startX = 24;
+    backpackItems.forEach((item, i) => {
+      const cx = startX + i * (cardW + gap);
+      const cy = panelY + 26;
+
+      // Card bg
+      ctx.fillStyle = (dragDevice && dragDevice.deviceType === item.id) ? '#1c2841' : '#11151a';
+      ctx.strokeStyle = '#30363d';
+      ctx.lineWidth = 1;
+      roundRectScreen(cx, cy, cardW, cardH, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      // Image
+      const img = getShopImage(item.id);
+      const imgS = 28;
+      if (img && img.complete && img.naturalWidth > 0) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx + 22, cy + 22, imgS / 2, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.drawImage(img, cx + 22 - imgS / 2, cy + 22 - imgS / 2, imgS, imgS);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = '#484f58';
+        ctx.font = `${14}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(item.icon, cx + 22, cy + 22);
+      }
+
+      // Name
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${10}px ${FONT_MONO}`;
+      ctx.textAlign = 'left';
+      ctx.fillText(item.name, cx + 42, cy + 16);
+
+      // Available count
+      ctx.fillStyle = '#3fb950';
+      ctx.font = `${10}px ${FONT_MONO}`;
+      ctx.fillText('×' + item.available, cx + 42, cy + 36);
+
+      // Drag hint
+      ctx.fillStyle = '#484f58';
+      ctx.font = `${8}px ${FONT_MONO}`;
+      ctx.fillText('拖拽放置', cx + 42, cy + 52);
+    });
+  }
+}
+
+// Screen-space rounded rect (ignores camera zoom)
+function roundRectScreen(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x, y + r);
+  ctx.closePath();
+}
+
+function findProdDeviceAt(wx, wy) {
+  const threshold = 38;
+  for (let i = productionDevices.length - 1; i >= 0; i--) {
+    const d = productionDevices[i];
+    if (activeProdDevice === d.id) continue;
+    const dist = Math.hypot(d.x - wx, d.y - wy);
+    if (dist < threshold) return d;
+  }
+  return null;
+}
+
+function findBackpackItemAt(screenX, screenY) {
+  if (!state.backpackOpen) return null;
+  const rect = canvas.getBoundingClientRect();
+  const panelY = rect.height - 110;
+  const cardW = 130, cardH = 70, gap = 12;
+  const items = getBackpackItems();
+  for (let i = 0; i < items.length; i++) {
+    const cx = 24 + i * (cardW + gap);
+    const cy = panelY + 26;
+    if (screenX >= cx && screenX <= cx + cardW &&
+        screenY >= cy && screenY <= cy + cardH) {
+      return items[i];
+    }
+  }
+  return null;
+}
+
+const PROD_DEVICE_RADIUS = 32;
+const PROD_DEVICE_MIN_DIST = PROD_DEVICE_RADIUS * 2 + 4; // no overlap + small gap
+
+function isPositionFree(wx, wy, excludeId) {
+  for (const d of productionDevices) {
+    if (d.id === excludeId) continue;
+    if (Math.hypot(d.x - wx, d.y - wy) < PROD_DEVICE_MIN_DIST) return false;
+  }
+  if (activeProdDevice && activeProdDevice !== excludeId) {
+    const ad = productionDevices.find(d => d.id === activeProdDevice);
+    if (ad && Math.hypot(ad.x - wx, ad.y - wy) < PROD_DEVICE_MIN_DIST) return false;
+  }
+  return true;
+}
+
+function isInCollectZone(wx, wy) {
+  const s = worldToScreen(wx, wy);
+  const rect = canvas.getBoundingClientRect();
+  const zoneW = 140, zoneH = 44;
+  const zoneX = rect.width / 2;
+  const zoneY = rect.height - zoneH / 2 - 8;
+  return s.x > zoneX - zoneW / 2 && s.x < zoneX + zoneW / 2 &&
+         s.y > zoneY - zoneH / 2 && s.y < zoneY + zoneH / 2;
+}
+
+function isConveyorBtnHit(screenX, screenY) {
+  const rect = canvas.getBoundingClientRect();
+  const bx = 20, by = rect.height - 104, br = 22;
+  return Math.hypot(screenX - bx, screenY - by) < br + 4;
+}
+
+function isBackpackBtnHit(screenX, screenY) {
+  const rect = canvas.getBoundingClientRect();
+  const bx = 20, by = rect.height - 60, br = 22;
+  return Math.hypot(screenX - bx, screenY - by) < br + 4;
+}
+
+function removePlacedDevice(id) {
+  productionDevices = productionDevices.filter(d => d.id !== id);
+  saveProductionDevices();
+  activeProdDevice = null;
+  activeProdOrigPos = null;
 }
 
 function draw() {
@@ -2287,6 +2652,9 @@ function update(dt) {
     updateWarehouse(dt);
   }
 
+  // Shop passive income (矿机 + 制作站 — works in all views)
+  updateShopPassive(dt);
+
   // Auto-clicker (global, works in all views)
   if (autoClickerLevel > 0) {
     autoClickerTimer += dt;
@@ -2321,13 +2689,11 @@ function gameLoop(time) {
   const dt = Math.min((time - lastTime) / 1000, 0.1);
   lastTime = time;
 
-  // FPS
+  // FPS tracking
   fpsAccum += dt;
   fpsFrames++;
   if (fpsAccum >= 1) {
     state.fps = fpsFrames;
-    document.getElementById('stat-fps').textContent = fpsFrames;
-    document.getElementById('status-zoom').textContent = Math.round(state.camera.zoom * 100) + '%';
     fpsAccum = 0;
     fpsFrames = 0;
   }
@@ -2347,19 +2713,63 @@ function getEventPos(e) {
 canvas.addEventListener('mousedown', (e) => {
   const pos = getEventPos(e);
   const world = screenToWorld(pos.x, pos.y);
-  const node = findNodeAt(world.x, world.y);
+
+  // ---- Production page interactions ----
+  if (e.button === 0 && state.currentView === 'production') {
+
+    // Conveyor belt button
+    if (isConveyorBtnHit(pos.x, pos.y)) {
+      state.conveyorMode = !state.conveyorMode;
+      return;
+    }
+
+    // Backpack button (only visible when panel closed)
+    if (!state.backpackOpen && isBackpackBtnHit(pos.x, pos.y)) {
+      state.backpackOpen = true;
+      return;
+    }
+
+    // Backpack panel interactions
+    if (state.backpackOpen) {
+      const bpItem = findBackpackItemAt(pos.x, pos.y);
+      if (bpItem && bpItem.available > 0) {
+        dragDevice = { deviceType: bpItem.id };
+        dragWorldPos = { x: world.x, y: world.y };
+        return;
+      }
+      // Click outside panel → close it
+      state.backpackOpen = false;
+      return;
+    }
+
+    // Placed device → start long-press or immediate activate
+    const prodDev = findProdDeviceAt(world.x, world.y);
+    if (prodDev && !activeProdDevice) {
+      longPressTarget = prodDev.id;
+      longPressTimer = setTimeout(() => {
+        if (longPressTarget) {
+          activeProdDevice = longPressTarget;
+          const dev = productionDevices.find(d => d.id === activeProdDevice);
+          if (dev) activeProdOrigPos = { x: dev.x, y: dev.y };
+          longPressTarget = null;
+          longPressTimer = null;
+        }
+      }, 500);
+      return;
+    }
+  }
 
   // Shop item click
   if (e.button === 0 && state.currentView === 'shop') {
     const shopCard = findShopItemAt(world.x, world.y);
     if (shopCard) {
-      purchaseShopItem(shopCard.item);
+      purchaseShopItem(shopCard);
       return;
     }
   }
 
-  // Admin node click (gives G5 in warehouse and pipeline views)
-  if (e.button === 0 && isAdminNodeHit(world.x, world.y) && state.currentView !== 'production' && state.currentView !== 'shop') {
+  // Admin node click (gives G5 in warehouse view)
+  if (e.button === 0 && isAdminNodeHit(world.x, world.y) && state.currentView === 'warehouse') {
     const clickValue = getAdminClickValue(adminLevel);
     g5 += clickValue;
     saveG5();
@@ -2379,28 +2789,69 @@ canvas.addEventListener('mousemove', (e) => {
   const pos = getEventPos(e);
   const world = screenToWorld(pos.x, pos.y);
 
-  // Update status bar
-  document.getElementById('status-pos').textContent =
-    `${Math.round(world.x)}, ${Math.round(world.y)}`;
+  // ---- Production page ----
+  if (state.currentView === 'production') {
+    // Drag ghost from backpack
+    if (dragDevice) {
+      dragWorldPos = snapToGridIntersection(world.x, world.y);
+      canvas.style.cursor = 'grabbing';
+    }
+    // Active device follows cursor
+    if (activeProdDevice) {
+      const dev = productionDevices.find(d => d.id === activeProdDevice);
+      if (dev) {
+        const snapped = snapToGridIntersection(world.x, world.y);
+        if (isPositionFree(snapped.x, snapped.y, activeProdDevice)) {
+          dev.x = snapped.x; dev.y = snapped.y;
+        }
+      }
+      canvas.style.cursor = 'grabbing';
+    }
+
+    // Cancel long-press if moved too much
+    if (longPressTimer && longPressTarget) {
+      const dev = productionDevices.find(d => d.id === longPressTarget);
+      if (dev && Math.hypot(world.x - dev.x, world.y - dev.y) > 8) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+        longPressTarget = null;
+      }
+    }
+
+    // Cursor for backpack items, devices, conveyor mode
+    if (!dragDevice && !activeProdDevice && !state.dragging) {
+      if (state.conveyorMode) {
+        canvas.style.cursor = 'cell';
+      } else {
+        const hoverDev = findProdDeviceAt(world.x, world.y);
+        const hoverBP = state.backpackOpen ? findBackpackItemAt(pos.x, pos.y) : null;
+        if (hoverDev || hoverBP || isBackpackBtnHit(pos.x, pos.y) || isConveyorBtnHit(pos.x, pos.y)) {
+          canvas.style.cursor = 'pointer';
+        } else {
+          canvas.style.cursor = 'crosshair';
+        }
+      }
+    }
+  }
 
   // Shop item hover
   if (state.currentView === 'shop' && !state.dragging) {
     const shopCard = findShopItemAt(world.x, world.y);
-    state.shopHoveredId = shopCard ? shopCard.item.id : null;
+    state.shopHoveredId = shopCard ? shopCard.id : null;
     canvas.style.cursor = shopCard ? 'pointer' : 'crosshair';
   }
 
   // Admin node hover → show floating upgrade panel
-  if (isAdminNodeHit(world.x, world.y) && !state.dragging && state.currentView !== 'production' && state.currentView !== 'shop') {
+  if (isAdminNodeHit(world.x, world.y) && !state.dragging && state.currentView === 'warehouse') {
     canvas.style.cursor = 'pointer';
     const adminScreen = worldToScreen(adminNode.x, adminNode.y);
     showAdminFloatPanel(adminScreen.x, adminScreen.y + adminNode.radius * state.camera.zoom + 12);
-  } else if (state.currentView !== 'shop') {
+  } else if (state.currentView === 'warehouse') {
     hideAdminFloatPanel();
     if (!state.dragging) canvas.style.cursor = 'crosshair';
   }
 
-  // Dragging
+  // Dragging pan
   if (state.dragging && state.dragging.type === 'pan') {
     state.camera.x = state.dragging.ox - (e.clientX - state.dragging.sx) / state.camera.zoom;
     state.camera.y = state.dragging.oy - (e.clientY - state.dragging.sy) / state.camera.zoom;
@@ -2408,6 +2859,44 @@ canvas.addEventListener('mousemove', (e) => {
 });
 
 canvas.addEventListener('mouseup', (e) => {
+  // ---- Production page drop ----
+  if (state.currentView === 'production') {
+    // Drop from backpack → place immediately (if position free)
+    if (dragDevice) {
+      if (isPositionFree(dragWorldPos.x, dragWorldPos.y, null)) {
+        const id = 'pd_' + (++prodDeviceIdCounter);
+        productionDevices.push({ id, deviceType: dragDevice.deviceType, x: dragWorldPos.x, y: dragWorldPos.y });
+        saveProductionDevices();
+      }
+      dragDevice = null;
+      canvas.style.cursor = 'crosshair';
+      return;
+    }
+
+    // Active device → finalize or collect
+    if (activeProdDevice) {
+      const dev = productionDevices.find(d => d.id === activeProdDevice);
+      if (dev && isInCollectZone(dev.x, dev.y)) {
+        // Remove device → return to backpack
+        productionDevices = productionDevices.filter(d => d.id !== activeProdDevice);
+        saveProductionDevices();
+      } else {
+        saveProductionDevices();
+      }
+      activeProdDevice = null;
+      activeProdOrigPos = null;
+      canvas.style.cursor = 'crosshair';
+      return;
+    }
+
+    // Clear long-press timer (short click = cancel)
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+      longPressTarget = null;
+    }
+  }
+
   // Finish pan
   if (state.dragging?.type === 'pan') {
     state.dragging = null;
@@ -2462,11 +2951,13 @@ function switchView(viewName) {
   // Reset interaction state
   state.dragging = null;
   state.shopHoveredId = null;
-
-  // Update status bar
-  if (viewName === 'warehouse') document.getElementById('status-tool').textContent = '页面: 干员仓库';
-  else if (viewName === 'production') document.getElementById('status-tool').textContent = '页面: 产线区块';
-  else if (viewName === 'shop') document.getElementById('status-tool').textContent = '页面: 商店';
+  state.backpackOpen = false;
+  state.conveyorMode = false;
+  dragDevice = null;
+  activeProdDevice = null;
+  activeProdOrigPos = null;
+  if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+  longPressTarget = null;
 
   closeGacha();
   closeAdminUpgrade();
@@ -2476,9 +2967,8 @@ function switchView(viewName) {
 document.querySelectorAll('.page-item[data-page]').forEach(item => {
   item.addEventListener('click', () => {
     const page = item.dataset.page;
-    if (page !== state.currentView) {
-      switchView(page);
-    }
+    if (page === state.currentView) return;
+    switchView(page);
   });
 });
 
@@ -2526,19 +3016,61 @@ const CHARACTERS_4STAR = [
 ];
 
 // ============================================================
-// Shop System — 3×3 九宫格商店
+// Shop System — 2×2 四件商品 (Rules of Shop.txt)
 // ============================================================
 
-// Only one purchasable item: auto-clicker in the center slot (slot 4, 0-indexed)
+// Shop item definitions — exactly matching Rules of Shop.txt
+const SHOP_DEFS = [
+  {
+    id: 'void_miner',
+    name: '虚空源岩矿机',
+    icon: '⛏',
+    img: "Shop/Shops‘ Images/虚空源岩矿机.png",
+    desc: '',
+    costCurrency: 'g5',
+    getCost: (level) => 100 * Math.pow(10, level), // 100, 1000, 1a, 10a, ...
+    maxLevel: 999,
+  },
+  {
+    id: 'craft_station',
+    name: '制作站',
+    icon: '🔧',
+    img: "Shop/Shops‘ Images/制作站.png",
+    desc: '',
+    costCurrency: 'g5',
+    getCost: (level) => 100 + 100 * level, // 100, 200, 300, 400, ...
+    maxLevel: 999,
+  },
+  {
+    id: 'hell_portal',
+    name: '地狱狂潮传送门',
+    icon: '🌀',
+    img: "Shop/Shops‘ Images/地狱狂潮传送门.png",
+    desc: '',
+    costCurrency: 'g5',
+    getCost: (level) => 100,
+    maxLevel: 1,
+  },
+  {
+    id: 'signal_analyzer',
+    name: '物质信号分析仪',
+    icon: '📡',
+    img: "Shop/Shops‘ Images/物质信号分析仪.png",
+    desc: '',
+    costCurrency: 'jade',
+    getCost: (level) => 1000,
+    maxLevel: 1, // 永久限购1次
+  },
+];
+
+// Auto-clicker — bonus item, separate from the 4 rule items
 const AUTO_CLICKER_ITEM = {
   id: 'auto_clicker',
-  icon: '⚡',
   name: '自动点击器',
-  desc: '每级每秒自动产出 G5',
-  getPrice: (level) => 5000 * Math.pow(2, level),
+  desc: '每级按管理员点击值自动产出 G5',
+  getCost: (level) => 5000 * Math.pow(2, level),
   maxLevel: 10,
 };
-const AUTO_CLICKER_SLOT = 4; // center cell of 3×3 grid
 
 let autoClickerLevel = parseInt(localStorage.getItem('auto_clicker_level') || '0');
 let autoClickerTimer = 0; // accumulates dt seconds for auto-clicker
@@ -2547,24 +3079,52 @@ function saveAutoClickerLevel() {
   localStorage.setItem('auto_clicker_level', String(autoClickerLevel));
 }
 
-// 3×3 grid layout — each slot has image placeholder area
+// Shop item levels persisted in localStorage
+let shopLevels = (() => {
+  try { return JSON.parse(localStorage.getItem('shop_levels') || '{}'); }
+  catch (e) { return {}; }
+})();
+
+function saveShopLevels() {
+  localStorage.setItem('shop_levels', JSON.stringify(shopLevels));
+}
+
+function getShopLevel(itemId) {
+  return shopLevels[itemId] || 0;
+}
+
+// Preload shop item images for canvas rendering
+const shopImages = {};
+(function preloadShopImages() {
+  SHOP_DEFS.forEach(def => {
+    const img = new Image();
+    img.src = def.img;
+    shopImages[def.id] = img;
+  });
+})();
+
+function getShopImage(id) {
+  return shopImages[id];
+}
+
+// 2×2 grid layout for the 4 rule-defined shop items
 function getShopCardLayout() {
-  const cols = 3, rows = 3;
-  const cardW = 190, cardH = 210;
-  const gapX = 32, gapY = 26;
+  const cols = 2, rows = 2;
+  const cardW = 210, cardH = 260;
+  const gapX = 44, gapY = 36;
   const totalW = cols * cardW + (cols - 1) * gapX;
   const totalH = rows * cardH + (rows - 1) * gapY;
   const startX = -(totalW / 2) + cardW / 2;
   const startY = -(totalH / 2) + cardH / 2;
   const cards = [];
-  for (let i = 0; i < cols * rows; i++) {
+  for (let i = 0; i < SHOP_DEFS.length; i++) {
     const col = i % cols;
     const row = Math.floor(i / cols);
-    const isAutoClicker = (i === AUTO_CLICKER_SLOT);
+    const def = SHOP_DEFS[i];
+    const level = getShopLevel(def.id);
     cards.push({
-      slotIndex: i,
-      item: isAutoClicker ? AUTO_CLICKER_ITEM : null,
-      isEmpty: !isAutoClicker,
+      ...def,
+      level,
       x: startX + col * (cardW + gapX),
       y: startY + row * (cardH + gapY),
       w: cardW,
@@ -2574,46 +3134,145 @@ function getShopCardLayout() {
   return cards;
 }
 
+// Auto-clicker bar layout (centered below the 2×2 grid)
+function getAutoClickerCard() {
+  const cardW = 464, cardH = 58;
+  return {
+    ...AUTO_CLICKER_ITEM,
+    level: autoClickerLevel,
+    x: 0,
+    y: 330,
+    w: cardW,
+    h: cardH,
+  };
+}
+
 function findShopItemAt(wx, wy) {
+  // Check 2×2 grid cards first
   const cards = getShopCardLayout();
   for (const card of cards) {
-    if (card.isEmpty) continue; // empty slot, not clickable
     const halfW = card.w / 2, halfH = card.h / 2;
     if (wx >= card.x - halfW && wx <= card.x + halfW &&
         wy >= card.y - halfH && wy <= card.y + halfH) {
       return card;
     }
   }
+  // Check auto-clicker bar
+  const ac = getAutoClickerCard();
+  const halfW = ac.w / 2, halfH = ac.h / 2;
+  if (wx >= ac.x - halfW && wx <= ac.x + halfW &&
+      wy >= ac.y - halfH && wy <= ac.y + halfH) {
+    return ac;
+  }
   return null;
 }
 
-function getAutoClickerPrice() {
-  return AUTO_CLICKER_ITEM.getPrice(autoClickerLevel);
+function getShopItemCost(def, level) {
+  return def.getCost(level);
 }
 
-function purchaseShopItem(item) {
-  if (!item || item.id !== 'auto_clicker') return false;
+function getAutoClickerPrice() {
+  return AUTO_CLICKER_ITEM.getCost(autoClickerLevel);
+}
 
-  if (autoClickerLevel >= item.maxLevel) return false;
-  const price = getAutoClickerPrice();
-  if (currency < price) return false;
-  currency -= price;
-  autoClickerLevel++;
-  saveCurrency();
-  saveAutoClickerLevel();
+function purchaseShopItem(card) {
+  if (!card || !card.id) return false;
+
+  // Auto-clicker purchase (uses 合成玉)
+  if (card.id === 'auto_clicker') {
+    if (autoClickerLevel >= card.maxLevel) return false;
+    const price = getAutoClickerPrice();
+    if (currency < price) return false;
+    currency -= price;
+    autoClickerLevel++;
+    saveCurrency();
+    saveAutoClickerLevel();
+    updateCurrencyDisplay();
+    updateAutoClickerIndicator();
+    addFloatingText('⚡ 自动点击器升级至 Lv.' + autoClickerLevel, 0, -60, '#3fb950', 18);
+    return true;
+  }
+
+  // Rule-defined shop item purchase
+  const def = SHOP_DEFS.find(d => d.id === card.id);
+  if (!def) return false;
+
+  const level = getShopLevel(def.id);
+  if (level >= def.maxLevel) return false;
+
+  const cost = getShopItemCost(def, level);
+
+  // Deduct appropriate currency
+  if (def.costCurrency === 'g5') {
+    if (g5 < cost) return false;
+    g5 -= cost;
+    saveG5();
+  } else if (def.costCurrency === 'jade') {
+    if (currency < cost) return false;
+    currency -= cost;
+    saveCurrency();
+  }
+
+  shopLevels[def.id] = level + 1;
+  saveShopLevels();
   updateCurrencyDisplay();
   updateAutoClickerIndicator();
-  addFloatingText('⚡ 自动点击器升级至 Lv.' + autoClickerLevel, 0, -60, '#3fb950', 18);
+
+  // Purchase feedback
+  if (def.id === 'void_miner') {
+    addFloatingText('⛏ 矿机 +1（共 ' + (level + 1) + ' 台）', 0, -40, '#58a6ff', 16);
+  } else if (def.id === 'craft_station') {
+    addFloatingText('🔧 制作站 +1（共 ' + (level + 1) + ' 台）', 0, -40, '#a371f7', 16);
+  } else if (def.id === 'hell_portal') {
+    addFloatingText('🌀 已购买：' + def.name, 0, -40, '#d2991d', 16);
+  } else if (def.id === 'signal_analyzer') {
+    addFloatingText('📡 已购买：' + def.name, 0, -40, '#3fb950', 16);
+  }
+
   return true;
+}
+
+// Passive income from shop items (虚空源岩矿机 + 制作站)
+let shopPassiveTimer = 0;
+
+function updateShopPassive(dt) {
+  shopPassiveTimer += dt;
+  const interval = 1.0; // tick every 1 second
+  while (shopPassiveTimer >= interval) {
+    shopPassiveTimer -= interval;
+
+    const minerLv = getShopLevel('void_miner');
+    if (minerLv > 0) {
+      g5 += minerLv;
+      saveG5();
+    }
+
+    const craftLv = getShopLevel('craft_station');
+    if (craftLv > 0) {
+      currency += craftLv;
+      saveCurrency();
+    }
+
+    if (minerLv > 0 || craftLv > 0) {
+      updateCurrencyDisplay();
+    }
+  }
 }
 
 function updateAutoClickerIndicator() {
   const indicator = document.getElementById('auto-clicker-indicator');
-  if (autoClickerLevel > 0) {
+  const minerLv = getShopLevel('void_miner');
+  const totalG5PerSec = minerLv + autoClickerLevel * getAdminClickValue(adminLevel);
+  const craftLv = getShopLevel('craft_station');
+
+  if (autoClickerLevel > 0 || minerLv > 0 || craftLv > 0) {
     indicator.classList.add('visible');
     document.getElementById('ac-level').textContent = 'Lv.' + autoClickerLevel;
-    const rate = getAdminClickValue(adminLevel) * autoClickerLevel;
-    document.getElementById('ac-rate').textContent = formatCurrency(rate) + ' G5/s';
+    document.getElementById('ac-rate').textContent = formatCurrency(totalG5PerSec) + ' G5/s';
+    // Show jade rate too if applicable
+    if (craftLv > 0) {
+      document.getElementById('ac-rate').textContent += ' | ' + formatCurrency(craftLv) + ' 玉/s';
+    }
   } else {
     indicator.classList.remove('visible');
   }
@@ -2628,20 +3287,20 @@ function drawShop() {
   drawGrid();
 
   // Title
-  const titleScreen = worldToScreen(0, -280);
+  const titleScreen = worldToScreen(0, -348);
   ctx.fillStyle = '#d4af37';
-  ctx.font = `bold ${24 * state.camera.zoom}px ${FONT_MONO}`;
+  ctx.font = `bold ${22 * state.camera.zoom}px ${FONT_MONO}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('🏪 商 店', titleScreen.x, titleScreen.y);
 
   // Subtitle
+  const subScreen = worldToScreen(0, -320);
   ctx.fillStyle = '#8b949e';
-  ctx.font = `${12 * state.camera.zoom}px ${FONT_MONO}`;
-  const subScreen = worldToScreen(0, -250);
-  ctx.fillText('使用 合成玉 购买物品', subScreen.x, subScreen.y);
+  ctx.font = `${11 * state.camera.zoom}px ${FONT_MONO}`;
+  ctx.fillText('使用 G5 或 合成玉 购买物品', subScreen.x, subScreen.y);
 
-  // Draw 3×3 grid
+  // Draw 2×2 grid of rule items
   const cards = getShopCardLayout();
 
   for (const card of cards) {
@@ -2650,12 +3309,24 @@ function drawShop() {
     const h = card.h * state.camera.zoom;
     const rx = 12 * state.camera.zoom;
 
-    const cardHovered = !card.isEmpty && state.shopHoveredId === card.item.id;
-    const isMaxed = !card.isEmpty && autoClickerLevel >= card.item.maxLevel;
+    const cardHovered = state.shopHoveredId === card.id;
+    const isMaxed = card.level >= card.maxLevel;
+    const isOneTime = card.maxLevel === 1;
 
-    // Card background
-    ctx.fillStyle = card.isEmpty ? '#11151a' : (cardHovered ? '#1c2841' : '#161b22');
-    ctx.strokeStyle = card.isEmpty ? '#1c2129' : (cardHovered ? '#d4af37' : '#30363d');
+    // Card background — green tint if purchased (one-time items)
+    let bgColor = '#161b22';
+    let borderColor = '#30363d';
+    if (isMaxed && isOneTime) {
+      bgColor = '#152218';
+      borderColor = '#2d5a3d';
+    }
+    if (cardHovered) {
+      bgColor = '#1c2841';
+      borderColor = '#d4af37';
+    }
+
+    ctx.fillStyle = bgColor;
+    ctx.strokeStyle = borderColor;
     ctx.lineWidth = (cardHovered ? 2.5 : 1.5) * state.camera.zoom;
     roundRect(s.x - w / 2, s.y - h / 2, w, h, rx);
     ctx.fill();
@@ -2664,110 +3335,164 @@ function drawShop() {
     // Glow on hover
     if (cardHovered) {
       ctx.shadowColor = '#d4af37';
-      ctx.shadowBlur = 15 * state.camera.zoom;
+      ctx.shadowBlur = 14 * state.camera.zoom;
       ctx.strokeStyle = '#d4af37';
       ctx.stroke();
       ctx.shadowBlur = 0;
     }
 
-    // Image placeholder area
-    const imgAreaY = s.y - h * 0.32;
-    const imgAreaH = h * 0.36;
-    const imgAreaW = w * 0.5;
-    const imgPad = 2 * state.camera.zoom;
+    // Image area — centered in upper portion of card
+    const imgSize = 82 * state.camera.zoom;
+    const imgAreaY = s.y - h * 0.22;
 
-    ctx.fillStyle = card.isEmpty ? '#0a0d12' : '#1c2129';
-    ctx.strokeStyle = card.isEmpty ? '#1c2129' : '#30363d';
-    ctx.lineWidth = 1 * state.camera.zoom;
-    const irx = 6 * state.camera.zoom;
-    roundRect(s.x - imgAreaW / 2 - imgPad, imgAreaY - imgAreaH / 2 - imgPad,
-              imgAreaW + imgPad * 2, imgAreaH + imgPad * 2, irx);
+    // Image border box
+    const imgPad = 5 * state.camera.zoom;
+    ctx.fillStyle = '#11151a';
+    ctx.strokeStyle = isMaxed && isOneTime ? '#2d5a3d' : '#30363d';
+    ctx.lineWidth = 1.5 * state.camera.zoom;
+    const imgRx = 8 * state.camera.zoom;
+    roundRect(s.x - imgSize / 2 - imgPad, imgAreaY - imgSize / 2 - imgPad,
+              imgSize + imgPad * 2, imgSize + imgPad * 2, imgRx);
     ctx.fill();
     ctx.stroke();
 
-    // Dashed border for image placeholder
-    ctx.save();
-    ctx.setLineDash([4 * state.camera.zoom, 4 * state.camera.zoom]);
-    ctx.strokeStyle = card.isEmpty ? '#1c2129' : '#30363d';
-    ctx.lineWidth = 1 * state.camera.zoom;
-    roundRect(s.x - imgAreaW / 2 - imgPad, imgAreaY - imgAreaH / 2 - imgPad,
-              imgAreaW + imgPad * 2, imgAreaH + imgPad * 2, irx);
-    ctx.stroke();
-    ctx.restore();
-
-    if (card.isEmpty) {
-      // Empty slot: question mark
-      ctx.fillStyle = '#1f242a';
-      ctx.font = `${22 * state.camera.zoom}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('❓', s.x, imgAreaY);
-
-      ctx.fillStyle = '#30363d';
-      ctx.font = `${10 * state.camera.zoom}px ${FONT_MONO}`;
-      ctx.fillText('敬请期待', s.x, s.y + h * 0.02);
+    // Draw item image or fallback icon
+    const shopImg = getShopImage(card.id);
+    if (shopImg && shopImg.complete && shopImg.naturalWidth > 0) {
+      ctx.save();
+      roundRect(s.x - imgSize / 2, imgAreaY - imgSize / 2, imgSize, imgSize, imgRx);
+      ctx.clip();
+      ctx.drawImage(shopImg, s.x - imgSize / 2, imgAreaY - imgSize / 2, imgSize, imgSize);
+      ctx.restore();
     } else {
-      // Auto-clicker slot: icon
-      ctx.fillStyle = '#3fb950';
-      ctx.font = `${32 * state.camera.zoom}px sans-serif`;
+      // Emoji fallback
+      ctx.fillStyle = '#484f58';
+      ctx.font = `${28 * state.camera.zoom}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(card.item.icon, s.x, imgAreaY);
+      ctx.fillText(card.icon, s.x, imgAreaY);
+    }
 
-      // Name
-      ctx.fillStyle = '#fff';
-      ctx.font = `bold ${13 * state.camera.zoom}px ${FONT_MONO}`;
-      ctx.fillText(card.item.name, s.x, s.y - h * 0.02);
+    // Name
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${13 * state.camera.zoom}px ${FONT_MONO}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(card.name, s.x, s.y + h * 0.06);
 
-      // Level
+    // Description
+    ctx.fillStyle = '#8b949e';
+    ctx.font = `${9.5 * state.camera.zoom}px ${FONT_MONO}`;
+    ctx.fillText(card.desc, s.x, s.y + h * 0.14);
+
+    // Level / Status badge
+    const statusY = s.y + h * 0.21;
+    if (isMaxed && isOneTime) {
       ctx.fillStyle = '#3fb950';
-      ctx.font = `bold ${12 * state.camera.zoom}px ${FONT_MONO}`;
-      ctx.fillText('Lv.' + autoClickerLevel + ' / ' + card.item.maxLevel, s.x, s.y + h * 0.08);
+      ctx.font = `bold ${11 * state.camera.zoom}px ${FONT_MONO}`;
+      ctx.fillText('✓ 已购买', s.x, statusY);
+    } else if (isOneTime) {
+      ctx.fillStyle = '#d2991d';
+      ctx.font = `bold ${11 * state.camera.zoom}px ${FONT_MONO}`;
+      ctx.fillText('限购 1 次', s.x, statusY);
+    } else {
+      ctx.fillStyle = '#d4af37';
+      ctx.font = `bold ${11 * state.camera.zoom}px ${FONT_MONO}`;
+      ctx.fillText('当前拥有：' + card.level + ' 台', s.x, statusY);
+    }
 
-      // Description
+    // Cost
+    const costY = s.y + h * 0.30;
+    if (!isMaxed) {
+      const cost = getShopItemCost(card, card.level);
+      const curLabel = card.costCurrency === 'jade' ? '合成玉' : 'G5';
+      const canAfford = card.costCurrency === 'jade' ? (currency >= cost) : (g5 >= cost);
+      ctx.fillStyle = canAfford ? '#3fb950' : '#f85149';
+      ctx.font = `bold ${10.5 * state.camera.zoom}px ${FONT_MONO}`;
+      ctx.fillText('💲' + formatCurrency(cost) + ' ' + curLabel, s.x, costY);
+    } else {
       ctx.fillStyle = '#8b949e';
-      ctx.font = `${10 * state.camera.zoom}px ${FONT_MONO}`;
-      ctx.fillText(card.item.desc, s.x, s.y + h * 0.17);
+      ctx.font = `${10.5 * state.camera.zoom}px ${FONT_MONO}`;
+      ctx.fillText(isOneTime ? '——' : '已满', s.x, costY);
+    }
 
-      // Price
-      const priceY = s.y + h * 0.32;
-      if (isMaxed) {
-        ctx.fillStyle = '#f85149';
-        ctx.font = `bold ${12 * state.camera.zoom}px ${FONT_MONO}`;
-        ctx.fillText('已满级', s.x, priceY);
-      } else {
-        const price = getAutoClickerPrice();
-        const canAfford = currency >= price;
-        ctx.fillStyle = canAfford ? '#3fb950' : '#f85149';
-        ctx.font = `bold ${12 * state.camera.zoom}px ${FONT_MONO}`;
-        ctx.fillText('💲' + formatCurrency(price) + ' 合成玉', s.x, priceY);
-      }
-
-      // Maxed overlay
-      if (isMaxed) {
-        ctx.fillStyle = 'rgba(248,81,73,0.08)';
-        roundRect(s.x - w / 2, s.y - h / 2, w, h, rx);
-        ctx.fill();
-      }
+    // Subtle green overlay for purchased one-time items
+    if (isMaxed && isOneTime) {
+      ctx.fillStyle = 'rgba(63,185,80,0.05)';
+      roundRect(s.x - w / 2, s.y - h / 2, w, h, rx);
+      ctx.fill();
     }
   }
 
-  // Player resources display at bottom
-  const resY = worldToScreen(0, 230);
-  ctx.fillStyle = '#d4af37';
-  ctx.font = `${12 * state.camera.zoom}px ${FONT_MONO}`;
+  // Divider between rule items and auto-clicker
+  const divY = worldToScreen(0, 290);
+  ctx.strokeStyle = '#21262d';
+  ctx.lineWidth = 1 * state.camera.zoom;
+  ctx.beginPath();
+  ctx.moveTo(divY.x - 250 * state.camera.zoom, divY.y);
+  ctx.lineTo(divY.x + 250 * state.camera.zoom, divY.y);
+  ctx.stroke();
+
+  // Auto-clicker purchase bar (below divider)
+  const ac = getAutoClickerCard();
+  const acScreen = worldToScreen(ac.x, ac.y);
+  const acW = ac.w * state.camera.zoom;
+  const acH = ac.h * state.camera.zoom;
+  const acRx = 8 * state.camera.zoom;
+  const acHovered = state.shopHoveredId === 'auto_clicker';
+  const acMaxed = autoClickerLevel >= ac.maxLevel;
+
+  ctx.fillStyle = acHovered ? '#1c2841' : '#161b22';
+  ctx.strokeStyle = acHovered ? '#d4af37' : '#30363d';
+  ctx.lineWidth = (acHovered ? 2 : 1.5) * state.camera.zoom;
+  roundRect(acScreen.x - acW / 2, acScreen.y - acH / 2, acW, acH, acRx);
+  ctx.fill();
+  ctx.stroke();
+
+  // Auto-clicker row content
+  const acRowY = acScreen.y;
+  const acLeftX = acScreen.x - acW * 0.38;
+
+  ctx.fillStyle = '#3fb950';
+  ctx.font = `${18 * state.camera.zoom}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('合成玉: ' + formatCurrency(currency) + '  |  G5: ' + formatCurrency(g5), resY.x, resY.y);
+  ctx.fillText('⚡', acLeftX, acRowY);
 
-  // Auto-clicker status
-  if (autoClickerLevel > 0) {
-    const acScreen = worldToScreen(0, 255);
-    ctx.fillStyle = '#3fb950';
-    ctx.font = `${11 * state.camera.zoom}px ${FONT_MONO}`;
-    const rate = getAdminClickValue(adminLevel) * autoClickerLevel;
-    ctx.fillText('⚡ 自动产出: ' + formatCurrency(rate) + ' G5/s', acScreen.x, acScreen.y);
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${12 * state.camera.zoom}px ${FONT_MONO}`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('自动点击器', acLeftX + 20 * state.camera.zoom, acRowY - 8 * state.camera.zoom);
+
+  ctx.fillStyle = '#8b949e';
+  ctx.font = `${9 * state.camera.zoom}px ${FONT_MONO}`;
+  ctx.fillText(ac.desc, acLeftX + 20 * state.camera.zoom, acRowY + 8 * state.camera.zoom);
+
+  // Level
+  const acCenterX = acScreen.x + acW * 0.15;
+  ctx.fillStyle = '#d4af37';
+  ctx.font = `bold ${11 * state.camera.zoom}px ${FONT_MONO}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Lv.' + autoClickerLevel + (acMaxed ? ' MAX' : ''), acCenterX, acRowY);
+
+  // Price
+  const acCostX = acScreen.x + acW * 0.36;
+  if (acMaxed) {
+    ctx.fillStyle = '#f85149';
+    ctx.font = `bold ${11 * state.camera.zoom}px ${FONT_MONO}`;
+    ctx.textAlign = 'center';
+    ctx.fillText('已满级', acCostX, acRowY);
+  } else {
+    const acPrice = getAutoClickerPrice();
+    const canAfford = currency >= acPrice;
+    ctx.fillStyle = canAfford ? '#3fb950' : '#f85149';
+    ctx.font = `bold ${11 * state.camera.zoom}px ${FONT_MONO}`;
+    ctx.textAlign = 'center';
+    ctx.fillText('💲' + formatCurrency(acPrice) + ' 合成玉', acCostX, acRowY);
   }
+
 }
 
 // Rounded rect helper for shop cards
@@ -2865,13 +3590,17 @@ function getAdminUpgradeCost(currentLevel) {
 function updateAdminUpgradeModal() {
   const clickValue = getAdminClickValue(adminLevel);
   const cost = getAdminUpgradeCost(adminLevel);
+  const isMaxed = adminLevel >= ADMIN_MAX_LEVEL;
 
-  document.getElementById('admin-level-display').textContent = adminLevel;
+  document.getElementById('admin-level-display').textContent = adminLevel + (isMaxed ? ' (满级)' : '');
   document.getElementById('admin-click-display').textContent = formatCurrency(clickValue) + ' G5';
-  document.getElementById('admin-cost-display').textContent = formatCurrency(cost) + ' G5';
+  document.getElementById('admin-cost-display').textContent = isMaxed ? '——' : formatCurrency(cost) + ' G5';
 
   const btn = document.getElementById('admin-upgrade-btn');
-  if (g5 < cost) {
+  if (isMaxed) {
+    btn.disabled = true;
+    btn.textContent = '⬆ 已满级';
+  } else if (g5 < cost) {
     btn.disabled = true;
     btn.textContent = '⬆ G5不足';
   } else {
@@ -2881,6 +3610,7 @@ function updateAdminUpgradeModal() {
 }
 
 function performAdminUpgrade() {
+  if (adminLevel >= ADMIN_MAX_LEVEL) return;
   const cost = getAdminUpgradeCost(adminLevel);
   if (g5 < cost) return;
 
@@ -2908,13 +3638,17 @@ function closeAdminUpgrade() {
 function updateAdminFloatPanel() {
   const clickValue = getAdminClickValue(adminLevel);
   const cost = getAdminUpgradeCost(adminLevel);
+  const isMaxed = adminLevel >= ADMIN_MAX_LEVEL;
 
-  document.getElementById('afp-level').textContent = adminLevel;
+  document.getElementById('afp-level').textContent = adminLevel + (isMaxed ? ' (满级)' : '');
   document.getElementById('afp-click').textContent = formatCurrency(clickValue) + ' G5';
-  document.getElementById('afp-cost').textContent = formatCurrency(cost) + ' G5';
+  document.getElementById('afp-cost').textContent = isMaxed ? '——' : formatCurrency(cost) + ' G5';
 
   const btn = document.getElementById('admin-float-btn');
-  if (g5 < cost) {
+  if (isMaxed) {
+    btn.disabled = true;
+    btn.textContent = '⬆ 已满级';
+  } else if (g5 < cost) {
     btn.disabled = true;
     btn.textContent = '⬆ G5不足';
   } else {
@@ -3294,9 +4028,6 @@ function openGacha() {
 
 function closeGacha() {
   document.getElementById('gacha-overlay').classList.remove('show');
-  if (state.currentView === 'warehouse') document.getElementById('status-tool').textContent = '页面: 干员仓库';
-  else if (state.currentView === 'production') document.getElementById('status-tool').textContent = '页面: 产线区块';
-  else if (state.currentView === 'shop') document.getElementById('status-tool').textContent = '页面: 商店';
 }
 
 // Sidebar 帝江号 button
@@ -3345,6 +4076,11 @@ document.addEventListener('keydown', (e) => {
       closeGacha();
     }
   }
+
+  // E key toggles conveyor mode (production page only)
+  if ((e.key === 'e' || e.key === 'E') && state.currentView === 'production') {
+    state.conveyorMode = !state.conveyorMode;
+  }
 });
 
 // ---- Fit view ----
@@ -3379,7 +4115,6 @@ updateCurrencyDisplay();
 updateAutoClickerIndicator();
 // Initialize warehouse view
 switchView('warehouse');
-document.getElementById('status-tool').textContent = '页面: 干员仓库';
 requestAnimationFrame(gameLoop);
 </script>
 </body>
