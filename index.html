@@ -511,8 +511,9 @@
   #gacha-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.75);
-    backdrop-filter: blur(4px);
+    background: 
+      linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.85)),
+      url('Other Images/帝江号.png') center/cover no-repeat;
     z-index: 100;
     display: none;
     align-items: center;
@@ -522,8 +523,8 @@
   #gacha-overlay.show { display: flex; }
 
   #gacha-modal {
-    background: var(--surface);
-    border: 1px solid var(--border);
+    background: rgba(22,27,34,0.92);
+    border: 1px solid rgba(210,153,29,0.3);
     border-radius: 16px;
     padding: 32px;
     max-width: 720px;
@@ -689,8 +690,8 @@
   .gacha-card.rarity-6 .card-stars { color: #f87171; }
 
   #gacha-modal-banner {
-    width: 100px;
-    height: 100px;
+    width: 48px;
+    height: 48px;
     object-fit: contain;
     margin-bottom: 4px;
     filter: drop-shadow(0 0 8px rgba(210,153,29,0.4));
@@ -1197,19 +1198,15 @@
 
   /* Auto-clicker HUD indicator */
   #auto-clicker-indicator {
-    position: absolute;
-    top: 72px;
-    right: 16px;
     display: none;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 5px 12px;
+    padding: 4px 10px;
     font-family: var(--font-mono, monospace);
-    font-size: 12px;
-    z-index: 15;
+    font-size: 11px;
     color: var(--accent-green);
   }
   #auto-clicker-indicator.visible { display: flex; }
@@ -1292,18 +1289,17 @@
 
   <div id="hud-shop" class="hud-group hidden"></div>
 
-  <div id="auto-clicker-indicator">
-    <span class="ac-icon">⚡</span>
-    <span id="ac-level">Lv.0</span>
-    <div class="ac-progress"><div class="ac-progress-fill" id="ac-fill" style="width:0%"></div></div>
-    <span id="ac-rate">0 G5/s</span>
-  </div>
-
   <div id="currency-hud">
     <div class="currency-card">
       <img src="Other Images/合成玉.png" alt="合成玉">
       <span class="cur-label">合成玉:</span>
       <span class="cur-amount" id="currency-display">0</span>
+    </div>
+    <div id="auto-clicker-indicator">
+      <span class="ac-icon">⚡</span>
+      <span id="ac-level">Lv.0</span>
+      <div class="ac-progress"><div class="ac-progress-fill" id="ac-fill" style="width:0%"></div></div>
+      <span id="ac-rate">0 G5/s</span>
     </div>
     <div class="currency-card">
       <img src="Other Images/先驱协议券G5.png" alt="G5">
@@ -1455,6 +1451,80 @@ const state = {
   // Production page
   backpackOpen: false,
   conveyorMode: false,
+  hoveredRecipeProduct: null,
+};
+
+// ---- Per-device material inventory ----
+// deviceMaterials: { [deviceId]: { inputs: [{materialId: count}, ...], output: {materialId: count} } }
+let deviceMaterials = {};
+
+function initDeviceMaterials(deviceId, deviceType) {
+  if (deviceMaterials[deviceId]) return;
+  const def = SHOP_DEFS.find(d => d.id === deviceType);
+  if (!def || !def.ports) return;
+  const inputs = [];
+  for (let i = 0; i < (def.ports.in || 0); i++) {
+    inputs.push({}); // each input port has its own material buffer
+  }
+  const outputs = [];
+  const nout = deviceType === 'void_miner' ? 2 : (def.ports.out || 0); // void miner: 2 outputs
+  for (let i = 0; i < nout; i++) {
+    outputs.push({});
+  }
+  deviceMaterials[deviceId] = { inputs, outputs };
+}
+
+function cleanupDeviceMaterials(deviceId) {
+  delete deviceMaterials[deviceId];
+}
+
+// ---- Material & Synthesis Data ----
+const MATERIALS = {
+  source_rock:        { id: 'source_rock',        name: '源岩',     icon: '🪨', color: '#8b8682', img: 'Materials/源岩.jpg' },
+  lumen_metal:        { id: 'lumen_metal',        name: '流明金属', icon: '✨', color: '#58a6ff', img: 'Materials/流明金属.jpg' },
+  electronic_component:{ id: 'electronic_component',name: '电子元件', icon: '🔌', color: '#3fb950', img: 'Materials/电子元件.jpg' },
+  solid_source_rock:  { id: 'solid_source_rock',  name: '固源岩',   icon: '🧱', color: '#d2991d', img: 'Materials/固源岩.jpg' },
+  crystallizer:       { id: 'crystallizer',       name: '晶化装置', icon: '💎', color: '#a371f7', img: 'Materials/晶化装置.jpg' },
+  originium_shard:    { id: 'originium_shard',    name: '原石碎片', icon: '💠', color: '#f0883e', img: 'Materials/原石碎片.png' },
+  originium:          { id: 'originium',          name: '原石',     icon: '🔮', color: '#d4af37',   img: 'Materials/原石.png' },
+  pure_originium:     { id: 'pure_originium',     name: '精纯原石', icon: '💎', color: '#ff6b6b',   img: 'Materials/精纯原石.png' },
+  oscilloscope:       { id: 'oscilloscope',       name: '示波器',   icon: '📟', color: '#79c0ff',   img: 'Materials/示波器.jpg' },
+  hell_key:           { id: 'hell_key',           name: '地狱狂潮钥匙', icon: '🗝️', color: '#f85149', img: 'Materials/地狱狂潮钥匙.png' },
+};
+
+// Recipes for 制作站 (Craft Station) — 3 inputs → 1 output
+const CRAFT_RECIPES = [
+  { inputs: { source_rock: 3 },                                    output: { solid_source_rock: 1 } },
+  { inputs: { lumen_metal: 2, electronic_component: 1 },           output: { crystallizer: 1 } },
+  { inputs: { solid_source_rock: 2, crystallizer: 1 },             output: { originium_shard: 1 } },
+  { inputs: { originium_shard: 3, crystallizer: 1 },               output: { originium: 1 } },
+  { inputs: { originium: 3, crystallizer: 1 },                     output: { pure_originium: 1 } },
+  { inputs: { solid_source_rock: 3, lumen_metal: 1, electronic_component: 1 }, output: { oscilloscope: 1 } },
+  { inputs: { solid_source_rock: 3, lumen_metal: 1 },              output: { hell_key: 1 } },
+];
+
+// Material conversion to 合成玉 (happens automatically when material is produced)
+const MATERIAL_TO_JADE = {
+  originium_shard: 15,
+  originium: 60,
+  pure_originium: 240,
+};
+
+// Hell portal: 1 地狱狂潮钥匙 → rewards
+const HELL_PORTAL_REWARDS = [
+  { type: 'mat', id: 'electronic_component', amount: 1, chance: 1.0 },
+  { type: 'g5', amount: 100, chance: 1.0 },
+  { type: 'jade', amount: 10, chance: 1.0 },
+  { type: 'jade', amount: 1000, chance: 0.01 },
+  { type: 'jade', amount: 500, chance: 0.15 },
+  { type: 'jade', amount: 200, chance: 0.30 },
+  { type: 'jade', amount: 20, chance: 0.50 },
+];
+
+// Signal analyzer recipe
+const SIGNAL_ANALYZER_RECIPE = {
+  inputs: { lumen_metal: 3, electronic_component: 3, oscilloscope: 1 },
+  output: { id: 'lumen_resonator', name: '流明金属共振捕获仪', icon: '📡' },
 };
 
 // ---- Production page state ----
@@ -1470,8 +1540,140 @@ let activeProdOrigPos = null; // { x, y } original position before move
 let longPressTimer = null;
 let longPressTarget = null;
 
+// ---- Conveyor belt connections ----
+let conveyorConnections = (() => {
+  try { return JSON.parse(localStorage.getItem('conveyor_connections') || '[]'); }
+  catch (e) { return []; }
+})(); // { id, fromDeviceId, fromPortIndex, toDeviceId, toPortIndex }
+let conveyorConnIdCounter = conveyorConnections.length;
+let connectingWire = null; // { fromDeviceId, fromPortIndex, fromX, fromY, toWorldPos: {x, y} } — active wire being dragged
+let selectedProdDevice = null; // id of device whose materials are being shown
+let selectedRecipeProduct = null; // id of product whose tree is shown
+
+// ---- Conveyor particles ----
+let conveyorParticles = []; // { connId, progress: 0..1, speed }
+
+function updateConveyorParticles(dt) {
+  // Spawn new particles for each connection
+  for (const conn of conveyorConnections) {
+    // Ensure at least 1 particle per connection
+    const existing = conveyorParticles.filter(p => p.connId === conn.id).length;
+    for (let i = existing; i < 2; i++) {
+      conveyorParticles.push({
+        connId: conn.id,
+        progress: Math.random(),
+        speed: 0.15 + Math.random() * 0.1,
+      });
+    }
+  }
+  // Update and remove finished particles
+  for (let i = conveyorParticles.length - 1; i >= 0; i--) {
+    const p = conveyorParticles[i];
+    p.progress += p.speed * dt;
+    if (p.progress > 1.0) {
+      p.progress -= 1.0; // loop back
+    }
+  }
+  // Clean orphaned particles (connection removed)
+  const validIds = new Set(conveyorConnections.map(c => c.id));
+  conveyorParticles = conveyorParticles.filter(p => validIds.has(p.connId));
+}
+
+// ---- Resonator system ----
+let resonatorCount = parseInt(localStorage.getItem('resonator_count') || '0');
+// deviceBoosts: { [deviceId]: { endTime: timestamp } }
+let deviceBoosts = (() => {
+  try { return JSON.parse(localStorage.getItem('device_boosts') || '{}'); }
+  catch (e) { return {}; }
+})();
+
+function saveResonatorCount() {
+  localStorage.setItem('resonator_count', String(resonatorCount));
+}
+
+function saveDeviceBoosts() {
+  // Only persist active boosts
+  const now = Date.now();
+  const active = {};
+  for (const [id, b] of Object.entries(deviceBoosts)) {
+    if (b.endTime > now) active[id] = b;
+  }
+  deviceBoosts = active;
+  localStorage.setItem('device_boosts', JSON.stringify(deviceBoosts));
+}
+
+// ---- Device product lists ----
+function getDeviceProducts(deviceType) {
+  switch (deviceType) {
+    case 'void_miner':
+      return [
+        { id: 'source_rock', name: '源岩', icon: '🪨', desc: '基础产出 1/s' },
+        { id: 'lumen_metal', name: '流明金属', icon: '✨', desc: '副产物 15%/s' },
+      ];
+    case 'craft_station':
+      return CRAFT_RECIPES.map(r => {
+        const matId = Object.keys(r.output)[0];
+        const mat = MATERIALS[matId];
+        const jade = MATERIAL_TO_JADE[matId];
+        return {
+          id: matId,
+          name: mat ? mat.name : matId,
+          icon: mat ? mat.icon : '📦',
+          desc: jade ? `产出 +${jade} 合成玉` : '合成材料',
+        };
+      });
+    case 'hell_portal':
+      return [
+        { id: 'electronic_component', name: '电子元件', icon: '🔌', desc: '固定产出 1/s' },
+      ].concat(
+        HELL_PORTAL_REWARDS.filter(r => r.type === 'g5' || r.type === 'jade').map(r => ({
+          id: r.type === 'g5' ? 'g5' : 'jade',
+          name: r.type === 'g5' ? 'G5' : '合成玉',
+          icon: r.type === 'g5' ? '💵' : '💎',
+          desc: `${(r.chance * 100).toFixed(0)}% +${r.amount}`,
+        }))
+      );
+    case 'signal_analyzer':
+      return [
+        { id: 'lumen_resonator', name: '捕获仪→背包', icon: '📡', desc: '自动收集至背包' },
+      ];
+    case 'protocol_transmitter':
+      return [
+        { id: 'originium_shard', name: '原石碎片→15玉', icon: '💠', desc: '需连接传送带' },
+        { id: 'originium', name: '原石→60玉', icon: '🔮', desc: '需连接传送带' },
+        { id: 'pure_originium', name: '精纯原石→240玉', icon: '💎', desc: '需连接传送带' },
+      ];
+    default:
+      return [];
+  }
+}
+
+// ---- Recipe tree builder ----
+function buildRecipeTree(productId, visited = new Set()) {
+  if (visited.has(productId)) return { product: productId, recipe: null, ingredients: [] };
+  visited.add(productId);
+  const recipe = CRAFT_RECIPES.find(r => Object.keys(r.output)[0] === productId);
+  if (recipe) {
+    return { product: productId, recipe, ingredients: Object.entries(recipe.inputs).map(([m, c]) => ({
+      material: m, count: c, subtree: buildRecipeTree(m, new Set(visited)),
+    })) };
+  }
+  if (productId === 'lumen_resonator') {
+    return { product: productId, recipe: SIGNAL_ANALYZER_RECIPE, ingredients: Object.entries(SIGNAL_ANALYZER_RECIPE.inputs).map(([m, c]) => ({
+      material: m, count: c, subtree: buildRecipeTree(m, new Set(visited)),
+    })) };
+  }
+  const sources = { source_rock: '虚空矿机', lumen_metal: '虚空矿机', electronic_component: '地狱传送门', hell_key: '制作站' };
+  const jadeRates = { originium_shard: '→15玉', originium: '→60玉', pure_originium: '→240玉' };
+  return { product: productId, recipe: null, source: sources[productId] || jadeRates[productId] || '基础', ingredients: [] };
+}
+
 function saveProductionDevices() {
   localStorage.setItem('prod_devices', JSON.stringify(productionDevices));
+}
+
+function saveConveyorConnections() {
+  localStorage.setItem('conveyor_connections', JSON.stringify(conveyorConnections));
 }
 
 function getBackpackItems() {
@@ -1484,6 +1686,23 @@ function getBackpackItems() {
     if (available > 0) {
       items.push({ ...def, owned, placed, available });
     }
+  }
+  // Special: resonator consumable
+  if (resonatorCount > 0) {
+    items.push({
+      id: 'resonator',
+      name: '流明金属共振捕获仪',
+      icon: '📡',
+      desc: '拖拽到虚空矿机',
+      available: resonatorCount,
+      thumbImg: 'Materials/流明金属共振捕获仪.png',
+      costCurrency: null,
+      getCost: null,
+      maxLevel: 999,
+      ports: null,
+      owned: resonatorCount,
+      placed: 0,
+    });
   }
   return items;
 }
@@ -1874,6 +2093,24 @@ function updateWarehouse(dt) {
         ent.vy += ny * bounceStrength;
         other.vx -= nx * bounceStrength;
         other.vy -= ny * bounceStrength;
+        // Generate G5 for both operators on collision
+        const now = performance.now() / 1000;
+        const upgEnt = (characterOwnership[ent.charFile]?.upg || 0);
+        const upgOther = (characterOwnership[other.charFile]?.upg || 0);
+        if (!ent.lastCollisionTime || now - ent.lastCollisionTime > 1.0) {
+          ent.lastCollisionTime = now;
+          const prod = getOperatorProduction(ent.rarity, upgEnt);
+          g5 += prod;
+          addFloatingText('+' + formatCurrency(prod) + ' G5', ent.x, ent.y - 20, '#ffd700', 14);
+        }
+        if (!other.lastCollisionTime || now - other.lastCollisionTime > 1.0) {
+          other.lastCollisionTime = now;
+          const prod = getOperatorProduction(other.rarity, upgOther);
+          g5 += prod;
+          addFloatingText('+' + formatCurrency(prod) + ' G5', other.x, other.y - 20, '#ffd700', 14);
+        }
+        saveG5();
+        updateCurrencyDisplay();
       }
     }
 
@@ -2243,6 +2480,111 @@ function drawWarehouse() {
   }
 }
 
+// ---- Horizontal recipe tree (aligned to product row) ----
+const HNODE_W = 110, HNODE_H = 24, H_GAP_X = 130, H_GAP_Y = 10;
+
+function measureHTree(node) {
+  if (!node.ingredients.length) return { w: HNODE_W, h: HNODE_H, maxDepth: 0 };
+  let h = 0, maxW = 0, maxD = 0;
+  for (const ing of node.ingredients) {
+    const d = measureHTree(ing.subtree);
+    h += d.h + H_GAP_Y;
+    maxW = Math.max(maxW, d.w);
+    maxD = Math.max(maxD, d.maxDepth);
+  }
+  return { w: HNODE_W + H_GAP_X + maxW, h: Math.max(HNODE_H, h - H_GAP_Y), maxDepth: maxD + 1 };
+}
+
+function drawHTreeNode(node, x, y, depth, maxDepth) {
+  if (depth > 10) return;
+  const mat = MATERIALS[node.product] || { icon: '📦', name: node.product, color: '#fff' };
+  const isBase = !node.recipe && !node.ingredients.length;
+  // x is the RIGHT edge of the node (root aligns to product list)
+  const nx = x - HNODE_W, ny = y - HNODE_H / 2;
+
+  ctx.fillStyle = isBase ? '#1a1f26' : '#161b22';
+  ctx.strokeStyle = isBase ? '#484f58' : '#58a6ff';
+  ctx.lineWidth = 1;
+  roundRectScreen(nx, ny, HNODE_W, HNODE_H, 3);
+  ctx.fill();
+  ctx.stroke();
+
+  const disp = mat.name.length > 4 ? mat.name.substring(0, 4) + '…' : mat.name;
+  const iconR = HNODE_H / 2 - 2;
+  const hasImg = drawMaterialIcon(node.product, nx + 4 + iconR, ny + HNODE_H / 2, iconR);
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${9}px ${FONT_MONO}`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(hasImg ? disp : (mat.icon + ' ' + disp), nx + (hasImg ? 4 + iconR * 2 + 4 : 4), ny + HNODE_H / 2);
+
+  // Count/source
+  ctx.fillStyle = '#8b949e';
+  ctx.font = `${8}px ${FONT_MONO}`;
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(isBase ? (node.source || '基础') : ('×' + Object.values(node.recipe.output)[0]), nx + HNODE_W - 4, ny + HNODE_H / 2);
+
+  if (!node.ingredients.length) return;
+
+  // Children to the left
+  const n = node.ingredients.length;
+  const childX = nx - H_GAP_X;
+
+  let childrenH = 0;
+  for (const ing of node.ingredients) childrenH += measureHTree(ing.subtree).h + H_GAP_Y;
+
+  let curCY = ny + (HNODE_H - (childrenH - H_GAP_Y)) / 2;
+
+  for (let i = 0; i < n; i++) {
+    const child = node.ingredients[i];
+    const cd = measureHTree(child.subtree);
+    const childCY = curCY + cd.h / 2;
+
+    // Distribute parent connection points along left edge
+    const parentCY = ny + HNODE_H * (i + 1) / (n + 1);
+
+    // L-shaped line: child right edge → horizontal → parent left edge
+    ctx.strokeStyle = '#30363d';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    // Horizontal from child right
+    ctx.moveTo(childX + HNODE_W, childCY);
+    const midX = (childX + HNODE_W + nx) / 2;
+    ctx.lineTo(midX, childCY);
+    // Vertical to parent level
+    ctx.lineTo(midX, parentCY);
+    // Horizontal to parent left
+    ctx.lineTo(nx, parentCY);
+    ctx.stroke();
+
+    // Count badge
+    ctx.fillStyle = '#d2991d';
+    ctx.font = `bold ${8}px ${FONT_MONO}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('×' + child.count, midX + 2, childCY - 1);
+
+    drawHTreeNode(child.subtree, childX + HNODE_W, childCY, depth + 1, maxDepth);
+    curCY += cd.h + H_GAP_Y;
+  }
+}
+
+// ---- Helper: draw a material icon image (or emoji fallback) ----
+function drawMaterialIcon(matId, cx, cy, r) {
+  const img = getMaterialImage(matId);
+  if (img && img.complete && img.naturalWidth > 0) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(img, cx - r, cy - r, r * 2, r * 2);
+    ctx.restore();
+    return true;
+  }
+  return false;
+}
+
 function drawProduction() {
   const rect = canvas.getBoundingClientRect();
   ctx.clearRect(0, 0, rect.width, rect.height);
@@ -2329,10 +2671,13 @@ function drawProduction() {
       ctx.fill();
     }
 
-    // Output ports — green triangles on RIGHT edge (pointing right →)
-    for (const p of ports.outputs) {
+    // Output ports — green triangles on RIGHT edge, golden for void_miner's 2nd port
+    for (let i = 0; i < ports.outputs.length; i++) {
+      const p = ports.outputs[i];
       const ps = worldToScreen(p.x, p.y);
-      ctx.fillStyle = '#3fb950';
+      // Golden triangle for void_miner's 流明金属 port (index 1)
+      const isGolden = dev.deviceType === 'void_miner' && i === 1;
+      ctx.fillStyle = isGolden ? '#d4af37' : '#3fb950';
       ctx.beginPath();
       ctx.moveTo(ps.x, ps.y - portR);
       ctx.lineTo(ps.x + portR * 1.6, ps.y);
@@ -2350,6 +2695,252 @@ function drawProduction() {
     const s = worldToScreen(dev.x, dev.y);
     drawDeviceBody(s.x, s.y, def, 1, false, false, false);
     drawDevicePorts(dev);
+
+    // Boost countdown bar for void miners
+    if (dev.deviceType === 'void_miner') {
+      const boost = deviceBoosts[dev.id];
+      if (boost && boost.endTime > Date.now()) {
+        const remaining = Math.max(0, boost.endTime - Date.now());
+        const total = 3 * 60 * 1000;
+        const pct = remaining / total;
+        const barW = PROD_DEVICE_HALF_W * 2 * state.camera.zoom;
+        const barH = 4 * state.camera.zoom;
+        const barX = s.x - barW / 2;
+        const barY = s.y - PROD_DEVICE_HALF_H * state.camera.zoom - barH - 3 * state.camera.zoom;
+
+        // Background
+        ctx.fillStyle = '#21262d';
+        roundRectScreen(barX, barY, barW, barH, 2);
+        ctx.fill();
+
+        // Fill
+        ctx.fillStyle = '#d4af37';
+        roundRectScreen(barX, barY, barW * pct, barH, 2);
+        ctx.fill();
+
+        // Time text
+        const mins = Math.floor(remaining / 60000);
+        const secs = Math.floor((remaining % 60000) / 1000);
+        ctx.fillStyle = '#d4af37';
+        ctx.font = `${8 * state.camera.zoom}px ${FONT_MONO}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`${mins}:${String(secs).padStart(2, '0')} ⚡`, s.x, barY - 2 * state.camera.zoom);
+      }
+    }
+  }
+
+  // ---- Draw material indicators on selected device ----
+
+  // ---- Draw conveyor connections ----
+  function getPortWorldPos(deviceId, portIndex, type) {
+    const dev = productionDevices.find(d => d.id === deviceId);
+    if (!dev) return null;
+    const ports = getDevicePorts(dev);
+    const list = type === 'output' ? ports.outputs : ports.inputs;
+    const port = list.find(p => p.index === portIndex);
+    return port ? { x: port.x, y: port.y } : null;
+  }
+
+  for (const conn of conveyorConnections) {
+    const fromPos = getPortWorldPos(conn.fromDeviceId, conn.fromPortIndex, 'output');
+    const toPos = getPortWorldPos(conn.toDeviceId, conn.toPortIndex, 'input');
+    if (!fromPos || !toPos) continue;
+
+    const fromS = worldToScreen(fromPos.x, fromPos.y);
+    const toS = worldToScreen(toPos.x, toPos.y);
+
+    ctx.strokeStyle = '#58a6ff';
+    ctx.lineWidth = 2.5 * state.camera.zoom;
+    ctx.beginPath();
+    ctx.moveTo(fromS.x, fromS.y);
+    ctx.lineTo(toS.x, toS.y);
+    ctx.stroke();
+
+    const arrowSize = 8 * state.camera.zoom;
+    const angle = Math.atan2(toS.y - fromS.y, toS.x - fromS.x);
+    const tipX = toS.x - 2 * state.camera.zoom * Math.cos(angle);
+    const tipY = toS.y - 2 * state.camera.zoom * Math.sin(angle);
+    ctx.fillStyle = '#58a6ff';
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(tipX - arrowSize * Math.cos(angle - Math.PI / 6), tipY - arrowSize * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(tipX - arrowSize * Math.cos(angle + Math.PI / 6), tipY - arrowSize * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Draw particles on connections
+  for (const p of conveyorParticles) {
+    const conn = conveyorConnections.find(c => c.id === p.connId);
+    if (!conn) continue;
+    const fromPos = getPortWorldPos(conn.fromDeviceId, conn.fromPortIndex, 'output');
+    const toPos = getPortWorldPos(conn.toDeviceId, conn.toPortIndex, 'input');
+    if (!fromPos || !toPos) continue;
+    const fromS = worldToScreen(fromPos.x, fromPos.y);
+    const toS = worldToScreen(toPos.x, toPos.y);
+    const px = fromS.x + (toS.x - fromS.x) * p.progress;
+    const py = fromS.y + (toS.y - fromS.y) * p.progress;
+    const r = 3 * state.camera.zoom;
+    ctx.fillStyle = '#f85149';
+    ctx.shadowColor = '#f85149';
+    ctx.shadowBlur = 6 * state.camera.zoom;
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  if (connectingWire) {
+    const fromS = worldToScreen(connectingWire.fromX, connectingWire.fromY);
+    const toS = worldToScreen(connectingWire.toWorldPos.x, connectingWire.toWorldPos.y);
+    ctx.strokeStyle = '#58a6ff';
+    ctx.lineWidth = 2.5 * state.camera.zoom;
+    ctx.setLineDash([6 * state.camera.zoom, 4 * state.camera.zoom]);
+    ctx.beginPath();
+    ctx.moveTo(fromS.x, fromS.y);
+    ctx.lineTo(toS.x, toS.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  if (selectedProdDevice) {
+    const dev = productionDevices.find(d => d.id === selectedProdDevice);
+    if (dev) {
+      const mats = deviceMaterials[dev.id];
+      if (mats) {
+        const ports = getDevicePorts(dev);
+        // Show output buffer materials (all output ports)
+        const outPorts = ports.outputs;
+        for (let pidx = 0; pidx < outPorts.length; pidx++) {
+          const outBuf = mats.outputs[pidx] || {};
+          const outEntries = Object.entries(outBuf).filter(([,c]) => c > 0);
+          if (outEntries.length === 0) continue;
+          const outP = outPorts[pidx];
+          if (!outP) continue;
+          const outPS = worldToScreen(outP.x, outP.y);
+          let outY = outPS.y - 8 * state.camera.zoom;
+
+          for (const [matId, count] of outEntries) {
+            const mat = MATERIALS[matId] || { icon: '📦', name: matId, color: '#fff' };
+            const zs = state.camera.zoom, r = 7 * zs;
+            const hasImg = drawMaterialIcon(matId, outPS.x + 10 * zs + r, outY + r, r);
+            ctx.fillStyle = mat.color;
+            ctx.font = `${9 * zs}px ${FONT_MONO}`;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText(
+              hasImg ? (mat.name + '×' + count) : (mat.icon + mat.name + '×' + count),
+              outPS.x + 10 * zs + (hasImg ? r * 2 + 3 * zs : 0), outY
+            );
+            outY += 12 * zs;
+          }
+        }
+
+        // Show input buffer materials
+        for (let i = 0; i < Math.min(mats.inputs.length, ports.inputs.length); i++) {
+          const ib = mats.inputs[i];
+          const ibEntries = Object.entries(ib).filter(([,c]) => c > 0);
+          if (ibEntries.length === 0) continue;
+
+          const inPort = ports.inputs[i];
+          const inS = worldToScreen(inPort.x, inPort.y);
+          const zs = state.camera.zoom;
+
+          // Draw each material with image
+          let lblX = inS.x - 8 * zs;
+          for (const [mid, c] of ibEntries) {
+            const m = MATERIALS[mid] || { icon: '', name: mid, color: '#8b949e' };
+            const r = 6 * zs;
+            if (drawMaterialIcon(mid, lblX - r, inS.y, r)) lblX -= r * 2 + 2 * zs;
+            ctx.fillStyle = m.color;
+            ctx.font = `${8 * zs}px ${FONT_MONO}`;
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('×' + c, lblX, inS.y);
+            lblX -= ctx.measureText('×' + c).width + 4 * zs;
+          }
+        }
+
+        // Selection highlight
+        const devS = worldToScreen(dev.x, dev.y);
+        const hw = PROD_DEVICE_HALF_W * state.camera.zoom;
+        const hh = PROD_DEVICE_HALF_H * state.camera.zoom;
+        ctx.strokeStyle = '#d4af37';
+        ctx.lineWidth = 3 * state.camera.zoom;
+        ctx.setLineDash([4, 4]);
+        roundRectScreen(devS.x - hw - 3, devS.y - hh - 3, hw * 2 + 6, hh * 2 + 6, 8);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+  }
+
+  // ---- Right-side product list ----
+  if (selectedProdDevice) {
+    const dev = productionDevices.find(d => d.id === selectedProdDevice);
+    if (dev) {
+      const products = getDeviceProducts(dev.deviceType);
+      if (products.length > 0) {
+        const listW = 148, itemH = 28, gap = 3;
+        const startY = 68;
+        const listX = rect.width - listW - 10;
+        const listH = products.length * (itemH + gap) - gap + 30;
+
+        // List background
+        ctx.fillStyle = 'rgba(22,27,34,0.97)';
+        ctx.strokeStyle = '#30363d';
+        ctx.lineWidth = 1;
+        roundRectScreen(listX - 4, startY, listW + 8, listH, 6);
+        ctx.fill();
+        ctx.stroke();
+
+        // Title
+        ctx.fillStyle = '#8b949e';
+        ctx.font = `bold ${10}px ${FONT_MONO}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText('可合成产物', listX + listW / 2, startY + 6);
+
+        // Items
+        for (let i = 0; i < products.length; i++) {
+          const prod = products[i];
+          const iy = startY + 20 + i * (itemH + gap);
+          const isSelected = selectedRecipeProduct === prod.id;
+
+          ctx.fillStyle = isSelected ? '#1c2841' : '#11151a';
+          ctx.strokeStyle = isSelected ? '#d4af37' : '#484f58';
+          ctx.lineWidth = isSelected ? 1.5 : 1;
+          roundRectScreen(listX, iy, listW, itemH, 4);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = '#fff';
+          ctx.font = `${10}px ${FONT_MONO}`;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          const pIconR = itemH / 2 - 4;
+          const pHasImg = drawMaterialIcon(prod.id, listX + 6 + pIconR, iy + itemH / 2, pIconR);
+          ctx.fillText(pHasImg ? prod.name : (prod.icon + ' ' + prod.name),
+            listX + (pHasImg ? 6 + pIconR * 2 + 4 : 6), iy + itemH / 2);
+
+          // Draw horizontal recipe tree for selected product
+          if (isSelected) {
+            const tree = buildRecipeTree(prod.id);
+            if (tree) {
+              const treeDims = measureHTree(tree);
+              const maxW = listX - 10;
+              const treeY = iy + itemH / 2;
+              const scale = Math.min(1, maxW / (treeDims.w + 4));
+              ctx.save();
+              ctx.translate(listX - 8, treeY);
+              ctx.scale(scale, 1);
+              drawHTreeNode(tree, 0, 0, 0, treeDims.maxDepth);
+              ctx.restore();
+            }
+          }
+        }
+      }
+    }
   }
 
   // ---- Draw active device (being repositioned) ----
@@ -2392,11 +2983,40 @@ function drawProduction() {
 
   // Draw drag ghost
   if (dragDevice) {
-    const def = SHOP_DEFS.find(d => d.id === dragDevice.deviceType);
-    if (def) {
+    if (dragDevice.deviceType === 'resonator') {
       const s = worldToScreen(dragWorldPos.x, dragWorldPos.y);
-      const canPlace = isPositionFree(dragWorldPos.x, dragWorldPos.y, null);
-      drawDeviceBody(s.x, s.y, def, 0.55, true, false, canPlace);
+      const hoverDev = findProdDeviceAt(dragWorldPos.x, dragWorldPos.y);
+      const canDrop = hoverDev && hoverDev.deviceType === 'void_miner';
+      const r = 22 * state.camera.zoom;
+      ctx.fillStyle = canDrop ? 'rgba(28,40,65,0.7)' : 'rgba(42,18,21,0.7)';
+      ctx.strokeStyle = canDrop ? '#3fb950' : '#f85149';
+      ctx.lineWidth = 2 * state.camera.zoom;
+      ctx.setLineDash(canDrop ? [] : [5 * state.camera.zoom, 3 * state.camera.zoom]);
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const img = getMaterialImage('resonator');
+      if (img && img.complete && img.naturalWidth > 0) {
+        ctx.save(); ctx.beginPath(); ctx.arc(s.x, s.y, r - 2, 0, Math.PI * 2); ctx.clip();
+        ctx.drawImage(img, s.x - r + 2, s.y - r + 2, (r - 2) * 2, (r - 2) * 2);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = '#fff'; ctx.font = `${14}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('📡', s.x, s.y);
+      }
+      ctx.fillStyle = '#fff';
+      ctx.font = `${10 * state.camera.zoom}px ${FONT_MONO}`;
+      ctx.textAlign = 'center';
+      ctx.fillText('捕获仪', s.x, s.y + r + 12 * state.camera.zoom);
+    } else {
+      const def = SHOP_DEFS.find(d => d.id === dragDevice.deviceType);
+      if (def) {
+        const s = worldToScreen(dragWorldPos.x, dragWorldPos.y);
+        const canPlace = isPositionFree(dragWorldPos.x, dragWorldPos.y, null);
+        drawDeviceBody(s.x, s.y, def, 0.55, true, false, canPlace);
+      }
     }
   }
 
@@ -2449,8 +3069,12 @@ function drawProduction() {
   // Backpack panel (bottom bar)
   const backpackItems = bpBtnItems; // reuse from button drawing above
   if (state.backpackOpen && backpackItems.length > 0) {
-    const panelY = rect.height - 160;
-    const panelH = 150;
+    // Split: special (transmitter) vs regular devices
+    const specialItems = backpackItems.filter(i => i.id === 'protocol_transmitter');
+    const regularItems = backpackItems.filter(i => i.id !== 'protocol_transmitter');
+    const hasBoth = specialItems.length > 0 && regularItems.length > 0;
+    const panelH = hasBoth ? 280 : 150;
+    const panelY = rect.height - panelH - 10;
 
     // Panel background
     ctx.fillStyle = 'rgba(22,27,34,0.97)';
@@ -2461,61 +3085,41 @@ function drawProduction() {
     roundRectScreen(10, panelY, rect.width - 20, panelH, 10);
     ctx.stroke();
 
-    // Panel title
-    ctx.fillStyle = '#8b949e';
-    ctx.font = `bold ${12}px ${FONT_MONO}`;
-    ctx.textAlign = 'left';
-    ctx.fillText('📦 背包', 24, panelY + 20);
-
-    // Device cards
     const cardW = 170, cardH = 115, gap = 18;
     const startX = 24;
-    backpackItems.forEach((item, i) => {
-      const cx = startX + i * (cardW + gap);
-      const cy = panelY + 30;
 
-      // Card bg
-      ctx.fillStyle = (dragDevice && dragDevice.deviceType === item.id) ? '#1c2841' : '#11151a';
-      ctx.strokeStyle = '#484f58';
-      ctx.lineWidth = 1.5;
-      roundRectScreen(cx, cy, cardW, cardH, 8);
-      ctx.fill();
-      ctx.stroke();
-
-      // Image
-      const img = getBackpackImage(item.id);
-      const imgS = 56;
-      if (img && img.complete && img.naturalWidth > 0) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(cx + 30, cy + 35, imgS / 2, 0, Math.PI * 2);
-        ctx.clip();
-        ctx.drawImage(img, cx + 30 - imgS / 2, cy + 35 - imgS / 2, imgS, imgS);
-        ctx.restore();
-      } else {
-        ctx.fillStyle = '#484f58';
-        ctx.font = `${18}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(item.icon, cx + 30, cy + 35);
-      }
-
-      // Name
-      ctx.fillStyle = '#fff';
-      ctx.font = `bold ${12}px ${FONT_MONO}`;
+    function drawBackpackRow(items, rowY, label, labelIcon) {
+      if (items.length === 0) return;
+      ctx.fillStyle = '#8b949e';
+      ctx.font = `bold 11px ${FONT_MONO}`;
       ctx.textAlign = 'left';
-      ctx.fillText(item.name, cx + 74, cy + 24);
+      ctx.fillText(labelIcon + ' ' + label, 24, rowY);
+      items.forEach((item, i) => {
+        const cx = startX + i * (cardW + gap);
+        const cy = rowY + 10;
+        ctx.fillStyle = (dragDevice && dragDevice.deviceType === item.id) ? '#1c2841' : '#11151a';
+        ctx.strokeStyle = '#484f58';
+        ctx.lineWidth = 1.5;
+        roundRectScreen(cx, cy, cardW, cardH, 8);
+        ctx.fill();
+        ctx.stroke();
+        const img = getBackpackImage(item.id);
+        const imgS = 56;
+        if (img && img.complete && img.naturalWidth > 0) {
+          ctx.save(); ctx.beginPath(); ctx.arc(cx + 30, cy + 35, imgS / 2, 0, Math.PI * 2); ctx.clip();
+          ctx.drawImage(img, cx + 30 - imgS / 2, cy + 35 - imgS / 2, imgS, imgS);
+          ctx.restore();
+        } else { ctx.fillStyle = '#484f58'; ctx.font = '18px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(item.icon, cx + 30, cy + 35); }
+        ctx.fillStyle = '#fff'; ctx.font = `bold 12px ${FONT_MONO}`; ctx.textAlign = 'left'; ctx.fillText(item.name, cx + 74, cy + 24);
+        ctx.fillStyle = '#3fb950'; ctx.font = `11px ${FONT_MONO}`; ctx.fillText('×' + item.available, cx + 74, cy + 54);
+        ctx.fillStyle = '#484f58'; ctx.font = `9px ${FONT_MONO}`;
+        ctx.fillText(item.id === 'resonator' ? '拖拽到虚空矿机' : item.id === 'protocol_transmitter' ? '拖拽放置(限1台)' : '拖拽放置', cx + 74, cy + 82);
+      });
+    }
 
-      // Available count
-      ctx.fillStyle = '#3fb950';
-      ctx.font = `${11}px ${FONT_MONO}`;
-      ctx.fillText('×' + item.available, cx + 74, cy + 54);
-
-      // Drag hint
-      ctx.fillStyle = '#484f58';
-      ctx.font = `${9}px ${FONT_MONO}`;
-      ctx.fillText('拖拽放置', cx + 74, cy + 82);
-    });
+    drawBackpackRow(specialItems, panelY + 16, '特殊', '▲');
+    const specialRowH = specialItems.length > 0 ? 130 : 0;
+    drawBackpackRow(regularItems, panelY + 16 + specialRowH, '设备', '▼');
   }
 }
 
@@ -2550,18 +3154,30 @@ function findProdDeviceAt(wx, wy) {
 function findBackpackItemAt(screenX, screenY) {
   if (!state.backpackOpen) return null;
   const rect = canvas.getBoundingClientRect();
-  const panelY = rect.height - 160;
-  const cardW = 170, cardH = 115, gap = 18;
   const items = getBackpackItems();
-  for (let i = 0; i < items.length; i++) {
-    const cx = 24 + i * (cardW + gap);
-    const cy = panelY + 30;
-    if (screenX >= cx && screenX <= cx + cardW &&
-        screenY >= cy && screenY <= cy + cardH) {
-      return items[i];
+  const specialItems = items.filter(i => i.id === 'protocol_transmitter');
+  const regularItems = items.filter(i => i.id !== 'protocol_transmitter');
+  const hasBoth = specialItems.length > 0 && regularItems.length > 0;
+  const panelH = hasBoth ? 280 : 150;
+  const panelY = rect.height - panelH - 10;
+  const cardW = 170, cardH = 115, gap = 18, startX = 24;
+
+  function checkRow(rowItems, rowY) {
+    for (let i = 0; i < rowItems.length; i++) {
+      const cx = startX + i * (cardW + gap);
+      const cy = rowY + 10;
+      if (screenX >= cx && screenX <= cx + cardW && screenY >= cy && screenY <= cy + cardH) {
+        return rowItems[i];
+      }
     }
+    return null;
   }
-  return null;
+
+  const specialRowY = panelY + 16;
+  let result = checkRow(specialItems, specialRowY);
+  if (result) return result;
+  const specialRowH = specialItems.length > 0 ? 130 : 0;
+  return checkRow(regularItems, panelY + 16 + specialRowH);
 }
 
 const PROD_DEVICE_HALF_W = 2 * CONFIG.GRID_SIZE; // 64 — rectangle half-width (4 grid units wide)
@@ -2612,7 +3228,8 @@ function getDevicePorts(dev) {
   }
 
   const outputs = [];
-  const nout = def.ports.out;
+  // void_miner has 2 output ports (源岩 + 流明金属), overriding shop definition
+  const nout = dev.deviceType === 'void_miner' ? 2 : def.ports.out;
   if (nout > 0) {
     const spacing = (hh * 2) / (nout + 1);
     for (let i = 0; i < nout; i++) {
@@ -2644,11 +3261,230 @@ function isBackpackBtnHit(screenX, screenY) {
   return Math.hypot(screenX - bx, screenY - by) < br + 4;
 }
 
+function findRecipeProductAt(screenX, screenY) {
+  if (!selectedProdDevice) return null;
+  const dev = productionDevices.find(d => d.id === selectedProdDevice);
+  if (!dev) return null;
+  const products = getDeviceProducts(dev.deviceType);
+  const rect = canvas.getBoundingClientRect();
+  const listW = 148, itemH = 28, gap = 3, startY = 68;
+  const listX = rect.width - listW - 10;
+  if (screenX < listX || screenX > listX + listW || screenY < startY + 20) return null;
+  for (let i = 0; i < products.length; i++) {
+    const iy = startY + 20 + i * (itemH + gap);
+    if (screenY >= iy && screenY <= iy + itemH) return products[i].id;
+  }
+  return null;
+}
+
+// ---- Port hit-testing ----
+const PORT_HIT_RADIUS = 12; // world-coordinate hit radius for ports
+
+function findPortAt(wx, wy) {
+  let best = null, bestDist = Infinity;
+  for (const dev of productionDevices) {
+    const ports = getDevicePorts(dev);
+    // Check outputs (triangles) first — they are the drag-start targets
+    for (const p of ports.outputs) {
+      const d = Math.hypot(p.x - wx, p.y - wy);
+      if (d < PORT_HIT_RADIUS && d < bestDist) {
+        best = { ...p, deviceId: dev.id, deviceType: dev.deviceType };
+        bestDist = d;
+      }
+    }
+    // Check inputs (squares)
+    for (const p of ports.inputs) {
+      const d = Math.hypot(p.x - wx, p.y - wy);
+      if (d < PORT_HIT_RADIUS && d < bestDist) {
+        best = { ...p, deviceId: dev.id, deviceType: dev.deviceType };
+        bestDist = d;
+      }
+    }
+  }
+  return best;
+}
+
+// Check if a connection already exists for a given port
+function hasConnectionToInput(deviceId, portIndex) {
+  return conveyorConnections.some(c => c.toDeviceId === deviceId && c.toPortIndex === portIndex);
+}
+
+function hasConnectionFromOutput(deviceId, portIndex) {
+  return conveyorConnections.some(c => c.fromDeviceId === deviceId && c.fromPortIndex === portIndex);
+}
+
 function removePlacedDevice(id) {
+  // Remove connections involving this device
+  conveyorConnections = conveyorConnections.filter(c => c.fromDeviceId !== id && c.toDeviceId !== id);
+  saveConveyorConnections();
+  cleanupDeviceMaterials(id);
   productionDevices = productionDevices.filter(d => d.id !== id);
   saveProductionDevices();
   activeProdDevice = null;
   activeProdOrigPos = null;
+}
+
+// ---- Production Simulation (material flow + crafting) ----
+let prodSimTimer = 0;
+
+function updateProductionSimulation(dt) {
+  prodSimTimer += dt;
+  const tickInterval = 1.0; // tick every 1 second
+  let ticks = 0;
+  const MAX_TICKS = 5; // safety cap: prevent freeze from excessive catch-up
+  while (prodSimTimer >= tickInterval && ticks < MAX_TICKS) {
+    prodSimTimer -= tickInterval;
+    ticks++;
+
+    // Clean expired boosts
+    const now = Date.now();
+    for (const [id, b] of Object.entries(deviceBoosts)) {
+      if (b.endTime <= now) delete deviceBoosts[id];
+    }
+
+    for (const dev of productionDevices) {
+      const mats = deviceMaterials[dev.id];
+      if (!mats) continue;
+
+      // --- Source devices: produce materials at output ---
+      if (dev.deviceType === 'void_miner') {
+        // output[0]: 1 源岩/s, output[1]: lumen metal chance boosted by resonator
+        addToBuffer(mats.outputs[0], 'source_rock', 1);
+        const boost = deviceBoosts[dev.id];
+        const boostActive = boost && boost.endTime > Date.now();
+        const lumenChance = boostActive ? 0.90 : 0.15;
+        if (Math.random() < lumenChance) {
+          addToBuffer(mats.outputs[1], 'lumen_metal', 1);
+        }
+      }
+
+      if (dev.deviceType === 'hell_portal') {
+        // Consume 地狱狂潮钥匙 from input[0] → produce rewards at output
+        const inputBuf = mats.inputs[0];
+        if (inputBuf && (inputBuf.hell_key || 0) >= 1) {
+          inputBuf.hell_key--;
+          // Always produce 1 电子元件
+          addToBuffer(mats.outputs[0], 'electronic_component', 1);
+          // Reward rolls
+          for (const reward of HELL_PORTAL_REWARDS) {
+            if (Math.random() < reward.chance) {
+              if (reward.type === 'mat') {
+                addToBuffer(mats.outputs[0], reward.id, reward.amount);
+              } else if (reward.type === 'g5') {
+                g5 += reward.amount;
+                saveG5();
+              } else if (reward.type === 'jade') {
+                currency += reward.amount;
+                saveCurrency();
+              }
+            }
+          }
+          updateCurrencyDisplay();
+        }
+      }
+
+      // --- Craft station: check recipes ---
+      if (dev.deviceType === 'craft_station') {
+        // Collect all input materials into a single pool
+        const allInputs = {};
+        for (const ib of mats.inputs) {
+          for (const [matId, count] of Object.entries(ib)) {
+            allInputs[matId] = (allInputs[matId] || 0) + count;
+          }
+        }
+
+        // Try each recipe
+        for (const recipe of CRAFT_RECIPES) {
+          if (canCraft(allInputs, recipe.inputs)) {
+            // Consume inputs proportionally from input ports
+            consumeFromInputs(mats.inputs, recipe.inputs);
+            // Produce output
+            for (const [matId, count] of Object.entries(recipe.output)) {
+              addToBuffer(mats.outputs[0], matId, count);
+            }
+          }
+        }
+      }
+
+      // --- Protocol transmitter: convert originium materials to jade ---
+      if (dev.deviceType === 'protocol_transmitter') {
+        for (const ib of mats.inputs) {
+          for (const [matId, count] of Object.entries(ib)) {
+            const rate = MATERIAL_TO_JADE[matId];
+            if (rate && count > 0) {
+              currency += rate * count;
+              saveCurrency();
+              delete ib[matId];
+            }
+          }
+        }
+        updateCurrencyDisplay();
+      }
+      if (dev.deviceType === 'signal_analyzer') {
+        const allInputs = {};
+        for (const ib of mats.inputs) {
+          for (const [matId, count] of Object.entries(ib)) {
+            allInputs[matId] = (allInputs[matId] || 0) + count;
+          }
+        }
+        if (canCraft(allInputs, SIGNAL_ANALYZER_RECIPE.inputs)) {
+          consumeFromInputs(mats.inputs, SIGNAL_ANALYZER_RECIPE.inputs);
+          resonatorCount++;
+          saveResonatorCount();
+        }
+      }
+    }
+
+    // --- Material flow: move materials from output buffers to connected input buffers ---
+    for (const conn of conveyorConnections) {
+      const fromMats = deviceMaterials[conn.fromDeviceId];
+      const toMats = deviceMaterials[conn.toDeviceId];
+      if (!fromMats || !toMats) continue;
+      if (conn.toPortIndex >= toMats.inputs.length) continue;
+
+      const outBuf = fromMats.outputs[conn.fromPortIndex] || {};
+      const inBuf = toMats.inputs[conn.toPortIndex];
+
+      // Transfer all materials from output to input
+      const matIds = Object.keys(outBuf);
+      for (const matId of matIds) {
+        if (outBuf[matId] > 0) {
+          inBuf[matId] = (inBuf[matId] || 0) + outBuf[matId];
+          delete outBuf[matId];
+        }
+      }
+    }
+  }
+  // If timer still exceeded after max ticks, reset to prevent spiral
+  if (prodSimTimer >= tickInterval) {
+    prodSimTimer = tickInterval - 0.01;
+  }
+}
+
+function addToBuffer(buf, matId, count) {
+  buf[matId] = (buf[matId] || 0) + count;
+}
+
+function canCraft(available, required) {
+  for (const [matId, count] of Object.entries(required)) {
+    if ((available[matId] || 0) < count) return false;
+  }
+  return true;
+}
+
+function consumeFromInputs(inputs, required) {
+  const remaining = { ...required };
+  for (const ib of inputs) {
+    for (const matId of Object.keys(ib)) {
+      if (remaining[matId] && ib[matId] > 0) {
+        const take = Math.min(ib[matId], remaining[matId]);
+        ib[matId] -= take;
+        remaining[matId] -= take;
+        if (ib[matId] <= 0) delete ib[matId];
+      }
+    }
+    if (Object.values(remaining).every(v => v <= 0)) break;
+  }
 }
 
 function draw() {
@@ -2719,8 +3555,10 @@ function update(dt) {
     updateWarehouse(dt);
   }
 
-  // Shop passive income (矿机 + 制作站 — works in all views)
-  updateShopPassive(dt);
+  // Production simulation (material flow + crafting — works in all views)
+  updateProductionSimulation(dt);
+  // Conveyor particles (update in all views)
+  updateConveyorParticles(dt);
 
   // Auto-clicker (global, works in all views)
   if (autoClickerLevel > 0) {
@@ -2784,9 +3622,19 @@ canvas.addEventListener('mousedown', (e) => {
   // ---- Production page interactions ----
   if (e.button === 0 && state.currentView === 'production') {
 
+    // Product list item click
+    if (selectedProdDevice && !state.conveyorMode && !state.backpackOpen) {
+      const prodId = findRecipeProductAt(pos.x, pos.y);
+      if (prodId) {
+        selectedRecipeProduct = (selectedRecipeProduct === prodId) ? null : prodId;
+        return;
+      }
+    }
+
     // Conveyor belt button
     if (isConveyorBtnHit(pos.x, pos.y)) {
       state.conveyorMode = !state.conveyorMode;
+      connectingWire = null; // cancel any active wire when toggling
       return;
     }
 
@@ -2801,7 +3649,7 @@ canvas.addEventListener('mousedown', (e) => {
       const bpItem = findBackpackItemAt(pos.x, pos.y);
       if (bpItem && bpItem.available > 0) {
         dragDevice = { deviceType: bpItem.id };
-        dragWorldPos = { x: world.x, y: world.y };
+        dragWorldPos = snapToGridIntersection(world.x, world.y);
         return;
       }
       // Click outside panel → close it
@@ -2809,14 +3657,33 @@ canvas.addEventListener('mousedown', (e) => {
       return;
     }
 
-    // Conveyor mode — just pan (belt drawing not yet implemented)
+    // Conveyor mode — start wire from output port
     if (state.conveyorMode && !state.backpackOpen) {
-      // fall through to pan
+      const port = findPortAt(world.x, world.y);
+      if (port && port.type === 'output') {
+        connectingWire = {
+          fromDeviceId: port.deviceId,
+          fromPortIndex: port.index,
+          fromX: port.x,
+          fromY: port.y,
+          toWorldPos: { x: world.x, y: world.y }
+        };
+        return;
+      }
+      // Click on empty space while dragging a wire → cancel the wire
+      if (connectingWire) {
+        connectingWire = null;
+        return;
+      }
+      // Click on empty space or input port → fall through to pan
     }
 
     // Placed device → start long-press or immediate activate
     const prodDev = findProdDeviceAt(world.x, world.y);
     if (prodDev && !activeProdDevice && !state.conveyorMode) {
+      // Click to toggle material display
+      selectedProdDevice = (selectedProdDevice === prodDev.id) ? null : prodDev.id;
+      selectedRecipeProduct = null;
       longPressTarget = prodDev.id;
       longPressTimer = setTimeout(() => {
         if (longPressTarget) {
@@ -2828,6 +3695,10 @@ canvas.addEventListener('mousedown', (e) => {
         }
       }, 500);
       return;
+    }
+    // Click on empty space → deselect
+    if (!state.conveyorMode && !state.backpackOpen) {
+      selectedProdDevice = null;
     }
   }
 
@@ -2865,7 +3736,9 @@ canvas.addEventListener('mousemove', (e) => {
   if (state.currentView === 'production') {
     // Drag ghost from backpack
     if (dragDevice) {
-      dragWorldPos = snapToGridIntersection(world.x, world.y);
+      dragWorldPos = dragDevice.deviceType === 'resonator'
+        ? { x: world.x, y: world.y }
+        : snapToGridIntersection(world.x, world.y);
       canvas.style.cursor = 'grabbing';
     }
     // Active device follows cursor
@@ -2890,14 +3763,21 @@ canvas.addEventListener('mousemove', (e) => {
       }
     }
 
+    // Update connecting wire position
+    if (connectingWire) {
+      connectingWire.toWorldPos = { x: world.x, y: world.y };
+      canvas.style.cursor = 'crosshair';
+    }
+
     // Cursor for backpack items, devices, conveyor mode
-    if (!dragDevice && !activeProdDevice && !state.dragging) {
+    if (!dragDevice && !activeProdDevice && !state.dragging && !connectingWire) {
       if (state.conveyorMode) {
           canvas.style.cursor = 'cell';
       } else {
         const hoverDev = findProdDeviceAt(world.x, world.y);
         const hoverBP = state.backpackOpen ? findBackpackItemAt(pos.x, pos.y) : null;
-        if (hoverDev || hoverBP || isBackpackBtnHit(pos.x, pos.y) || isConveyorBtnHit(pos.x, pos.y)) {
+        state.hoveredRecipeProduct = selectedProdDevice ? findRecipeProductAt(pos.x, pos.y) : null;
+        if (hoverDev || hoverBP || state.hoveredRecipeProduct || isBackpackBtnHit(pos.x, pos.y) || isConveyorBtnHit(pos.x, pos.y)) {
           canvas.style.cursor = 'pointer';
         } else {
           canvas.style.cursor = 'crosshair';
@@ -2933,11 +3813,70 @@ canvas.addEventListener('mousemove', (e) => {
 canvas.addEventListener('mouseup', (e) => {
   // ---- Production page drop ----
   if (state.currentView === 'production') {
-    // Drop from backpack → place immediately (if position free)
+    // Finalize conveyor wire connection
+    if (connectingWire) {
+      const pos = getEventPos(e);
+      const worldEnd = screenToWorld(pos.x, pos.y);
+      const targetPort = findPortAt(worldEnd.x, worldEnd.y);
+      if (targetPort && targetPort.type === 'input' && targetPort.deviceId !== connectingWire.fromDeviceId) {
+        // Check if same connection already exists → toggle off (disconnect)
+        const existingIdx = conveyorConnections.findIndex(
+          c => c.fromDeviceId === connectingWire.fromDeviceId &&
+               c.fromPortIndex === connectingWire.fromPortIndex &&
+               c.toDeviceId === targetPort.deviceId &&
+               c.toPortIndex === targetPort.index
+        );
+        if (existingIdx !== -1) {
+          conveyorConnections.splice(existingIdx, 1);
+          saveConveyorConnections();
+        } else {
+          // Validate: each port can only have 1 connection
+          const outputUsed = conveyorConnections.some(
+            c => c.fromDeviceId === connectingWire.fromDeviceId && c.fromPortIndex === connectingWire.fromPortIndex
+          );
+          const inputUsed = conveyorConnections.some(
+            c => c.toDeviceId === targetPort.deviceId && c.toPortIndex === targetPort.index
+          );
+          if (!outputUsed && !inputUsed) {
+            const id = 'cc_' + (++conveyorConnIdCounter);
+            conveyorConnections.push({
+              id,
+              fromDeviceId: connectingWire.fromDeviceId,
+              fromPortIndex: connectingWire.fromPortIndex,
+              toDeviceId: targetPort.deviceId,
+              toPortIndex: targetPort.index
+            });
+            saveConveyorConnections();
+          }
+        }
+      }
+      connectingWire = null;
+      canvas.style.cursor = state.conveyorMode ? 'cell' : 'crosshair';
+      return;
+    }
+
+    // Drop from backpack → place device or apply resonator
     if (dragDevice) {
+      if (dragDevice.deviceType === 'resonator') {
+        // Check if dropped on a void miner
+        const worldDrop = screenToWorld(
+          getEventPos(e).x, getEventPos(e).y
+        );
+        const targetDev = findProdDeviceAt(worldDrop.x, worldDrop.y);
+        if (targetDev && targetDev.deviceType === 'void_miner' && resonatorCount > 0) {
+          resonatorCount--;
+          saveResonatorCount();
+          deviceBoosts[targetDev.id] = { endTime: Date.now() + 3 * 60 * 1000 };
+          saveDeviceBoosts();
+        }
+        dragDevice = null;
+        canvas.style.cursor = 'crosshair';
+        return;
+      }
       if (isPositionFree(dragWorldPos.x, dragWorldPos.y, null)) {
         const id = 'pd_' + (++prodDeviceIdCounter);
         productionDevices.push({ id, deviceType: dragDevice.deviceType, x: dragWorldPos.x, y: dragWorldPos.y });
+        initDeviceMaterials(id, dragDevice.deviceType);
         saveProductionDevices();
       }
       dragDevice = null;
@@ -2949,7 +3888,12 @@ canvas.addEventListener('mouseup', (e) => {
     if (activeProdDevice) {
       const dev = productionDevices.find(d => d.id === activeProdDevice);
       if (dev && isInCollectZone(dev.x, dev.y)) {
-        // Remove device → return to backpack
+        // Remove device → return to backpack, also remove its connections
+        conveyorConnections = conveyorConnections.filter(
+          c => c.fromDeviceId !== activeProdDevice && c.toDeviceId !== activeProdDevice
+        );
+        saveConveyorConnections();
+        cleanupDeviceMaterials(activeProdDevice);
         productionDevices = productionDevices.filter(d => d.id !== activeProdDevice);
         saveProductionDevices();
       } else {
@@ -3023,11 +3967,15 @@ function switchView(viewName) {
   // Reset interaction state
   state.dragging = null;
   state.shopHoveredId = null;
+  state.hoveredRecipeProduct = null;
   state.backpackOpen = false;
   state.conveyorMode = false;
   dragDevice = null;
   activeProdDevice = null;
   activeProdOrigPos = null;
+  connectingWire = null;
+  selectedProdDevice = null;
+  selectedRecipeProduct = null;
   if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
   longPressTarget = null;
 
@@ -3141,6 +4089,18 @@ const SHOP_DEFS = [
     maxLevel: 1, // 永久限购1次
     ports: { in: 3, out: 1 },
   },
+  {
+    id: 'protocol_transmitter',
+    name: '原石协议传输器',
+    icon: '📡',
+    img: "Machines In Bag/Images of Machines' Icons/缩略原石协议传输器.png",
+    thumbImg: "Machines In Bag/Images of Machines' Icons/缩略原石协议传输器.png",
+    desc: '',
+    costCurrency: 'special',
+    getCost: (level) => 1,
+    maxLevel: 1,
+    ports: { in: 5, out: 0 },
+  },
 ];
 
 // Auto-clicker — bonus item, separate from the 4 rule items
@@ -3164,6 +4124,12 @@ let shopLevels = (() => {
   try { return JSON.parse(localStorage.getItem('shop_levels') || '{}'); }
   catch (e) { return {}; }
 })();
+
+// Ensure protocol transmitter always available
+if (!shopLevels.protocol_transmitter) {
+  shopLevels.protocol_transmitter = 1;
+  saveShopLevels();
+}
 
 function saveShopLevels() {
   localStorage.setItem('shop_levels', JSON.stringify(shopLevels));
@@ -3198,7 +4164,39 @@ const backpackImages = {};
 })();
 
 function getBackpackImage(id) {
+  if (id === 'resonator') return getMaterialImage('resonator');
   return backpackImages[id];
+}
+
+// Material image cache
+const materialImages = {};
+(function preloadMaterialImages() {
+  for (const mat of Object.values(MATERIALS)) {
+    if (mat.img) {
+      const img = new Image();
+      img.src = mat.img;
+      materialImages[mat.id] = img;
+    }
+  }
+  // Special items
+  const specials = {
+    g5: 'Other Images/先驱协议券G5.png',
+    jade: 'Other Images/合成玉.png',
+    lumen_resonator: 'Materials/流明金属共振捕获仪.png',
+  };
+  for (const [id, src] of Object.entries(specials)) {
+    const img = new Image();
+    img.src = src;
+    materialImages[id] = img;
+  }
+  // Resonator thumbnail
+  const resImg = new Image();
+  resImg.src = 'Materials/流明金属共振捕获仪.png';
+  materialImages['resonator'] = resImg;
+})();
+
+function getMaterialImage(matId) {
+  return materialImages[matId] || null;
 }
 
 // 2×2 grid layout for the 4 rule-defined shop items
@@ -3211,10 +4209,11 @@ function getShopCardLayout() {
   const startX = -(totalW / 2) + cardW / 2;
   const startY = -(totalH / 2) + cardH / 2;
   const cards = [];
-  for (let i = 0; i < SHOP_DEFS.length; i++) {
+  const shopItems = SHOP_DEFS.filter(d => d.costCurrency !== 'special');
+  for (let i = 0; i < shopItems.length; i++) {
     const col = i % cols;
     const row = Math.floor(i / cols);
-    const def = SHOP_DEFS[i];
+    const def = shopItems[i];
     const level = getShopLevel(def.id);
     cards.push({
       ...def,
@@ -3326,47 +4325,14 @@ function purchaseShopItem(card) {
   return true;
 }
 
-// Passive income from shop items (虚空源岩矿机 + 制作站)
-let shopPassiveTimer = 0;
-
-function updateShopPassive(dt) {
-  shopPassiveTimer += dt;
-  const interval = 1.0; // tick every 1 second
-  while (shopPassiveTimer >= interval) {
-    shopPassiveTimer -= interval;
-
-    const minerLv = getShopLevel('void_miner');
-    if (minerLv > 0) {
-      g5 += minerLv;
-      saveG5();
-    }
-
-    const craftLv = getShopLevel('craft_station');
-    if (craftLv > 0) {
-      currency += craftLv;
-      saveCurrency();
-    }
-
-    if (minerLv > 0 || craftLv > 0) {
-      updateCurrencyDisplay();
-    }
-  }
-}
-
 function updateAutoClickerIndicator() {
   const indicator = document.getElementById('auto-clicker-indicator');
-  const minerLv = getShopLevel('void_miner');
-  const totalG5PerSec = minerLv + autoClickerLevel * getAdminClickValue(adminLevel);
-  const craftLv = getShopLevel('craft_station');
+  const totalG5PerSec = autoClickerLevel * getAdminClickValue(adminLevel);
 
-  if (autoClickerLevel > 0 || minerLv > 0 || craftLv > 0) {
+  if (autoClickerLevel > 0) {
     indicator.classList.add('visible');
     document.getElementById('ac-level').textContent = 'Lv.' + autoClickerLevel;
     document.getElementById('ac-rate').textContent = formatCurrency(totalG5PerSec) + ' G5/s';
-    // Show jade rate too if applicable
-    if (craftLv > 0) {
-      document.getElementById('ac-rate').textContent += ' | ' + formatCurrency(craftLv) + ' 玉/s';
-    }
   } else {
     indicator.classList.remove('visible');
   }
@@ -4174,6 +5140,12 @@ document.addEventListener('keydown', (e) => {
   // E key toggles conveyor mode (production page only)
   if ((e.key === 'e' || e.key === 'E') && state.currentView === 'production') {
     state.conveyorMode = !state.conveyorMode;
+    connectingWire = null; // cancel any active wire when toggling
+  }
+
+  // Escape cancels wire drag (production page, conveyor mode)
+  if (e.key === 'Escape' && state.currentView === 'production' && connectingWire) {
+    connectingWire = null;
   }
 });
 
@@ -4207,6 +5179,10 @@ state.camera = { x: 0, y: 0, zoom: 1 };
 migrateOwnership();
 updateCurrencyDisplay();
 updateAutoClickerIndicator();
+// Initialize material inventories for existing production devices
+for (const dev of productionDevices) {
+  initDeviceMaterials(dev.id, dev.deviceType);
+}
 // Initialize warehouse view
 switchView('warehouse');
 requestAnimationFrame(gameLoop);
