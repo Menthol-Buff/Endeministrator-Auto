@@ -256,14 +256,12 @@
   .context-item:hover { background: #1c2841; }
   .context-sep { height: 1px; background: var(--border); margin: 4px 0; }
 
-  /* === CURRENCY HUD (top-right) === */
+  /* === CURRENCY HUD (sidebar) === */
   #currency-hud {
-    position: absolute;
-    top: 16px;
-    right: 16px;
     display: flex;
-    gap: 16px;
-    z-index: 15;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
   }
   #currency-hud .currency-card {
     background: var(--surface);
@@ -1200,11 +1198,11 @@
   #auto-clicker-indicator {
     display: none;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 4px 10px;
+    padding: 6px 12px;
     font-family: var(--font-mono, monospace);
     font-size: 11px;
     color: var(--accent-green);
@@ -1212,7 +1210,7 @@
   #auto-clicker-indicator.visible { display: flex; }
   #auto-clicker-indicator .ac-icon { font-size: 14px; }
   #auto-clicker-indicator .ac-progress {
-    width: 60px;
+    flex: 1;
     height: 4px;
     background: var(--border);
     border-radius: 2px;
@@ -1256,6 +1254,26 @@
       <img src="Other Images/帝江号.png" alt="帝江号" style="width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:4px;">
       帝江号 抽卡
     </button>
+    <div id="currency-hud">
+      <div class="currency-card">
+        <img src="Other Images/合成玉.png" alt="合成玉">
+        <span class="cur-label">合成玉:</span>
+        <span class="cur-amount" id="currency-display">0</span>
+      </div>
+      <div class="currency-card">
+        <img src="Other Images/先驱协议券G5.png" alt="G5">
+        <span class="cur-label">G5:</span>
+        <span class="cur-amount" id="g5-display">0</span>
+      </div>
+      <div id="auto-clicker-indicator">
+        <span class="ac-icon">⚡</span>
+        <span id="ac-level">Lv.0</span>
+        <div class="ac-progress">
+          <div class="ac-progress-fill" id="ac-fill" style="width:0%"></div>
+        </div>
+        <span id="ac-rate">0 G5/s</span>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1288,25 +1306,6 @@
   <div id="hud-production" class="hud-group hidden"></div>
 
   <div id="hud-shop" class="hud-group hidden"></div>
-
-  <div id="currency-hud">
-    <div class="currency-card">
-      <img src="Other Images/合成玉.png" alt="合成玉">
-      <span class="cur-label">合成玉:</span>
-      <span class="cur-amount" id="currency-display">0</span>
-    </div>
-    <div id="auto-clicker-indicator">
-      <span class="ac-icon">⚡</span>
-      <span id="ac-level">Lv.0</span>
-      <div class="ac-progress"><div class="ac-progress-fill" id="ac-fill" style="width:0%"></div></div>
-      <span id="ac-rate">0 G5/s</span>
-    </div>
-    <div class="currency-card">
-      <img src="Other Images/先驱协议券G5.png" alt="G5">
-      <span class="cur-label">G5:</span>
-      <span class="cur-amount" id="g5-display">0</span>
-    </div>
-  </div>
 
   <div id="admin-float-panel">
     <div class="float-title">⬆ 管理员升级</div>
@@ -1462,6 +1461,13 @@ const MATERIALS = {
   pure_originium:     { id: 'pure_originium',     name: '精纯原石', icon: '💎', color: '#ff6b6b',   img: 'Materials/精纯原石.png' },
   oscilloscope:       { id: 'oscilloscope',       name: '示波器',   icon: '📟', color: '#79c0ff',   img: 'Materials/示波器.jpg' },
   hell_key:           { id: 'hell_key',           name: '地狱狂潮钥匙', icon: '🗝️', color: '#f85149', img: 'Materials/地狱狂潮钥匙.png' },
+  lumen_resonator: {
+    id: 'lumen_resonator',
+    name: '流明金属共振捕获仪',
+    icon: '📡',
+    color: '#d4af37',
+    img: 'Materials/流明金属共振捕获仪.png'
+  },
 };
 
 // Recipes for 制作站 (Craft Station) — 3 inputs → 1 output
@@ -1492,7 +1498,7 @@ const HELL_PORTAL_REWARDS = [
 // Signal analyzer recipe
 const SIGNAL_ANALYZER_RECIPE = {
   inputs: { lumen_metal: 3, electronic_component: 3, oscilloscope: 1 },
-  output: { id: 'lumen_resonator', name: '流明金属共振捕获仪', icon: '📡' },
+  output: {lumen_resonator: 1},
 };
 
 // ---- Production page state ----
@@ -1626,7 +1632,12 @@ function buildRecipeTree(productId, visited = new Set()) {
       material: m, count: c, subtree: buildRecipeTree(m, new Set(visited)),
     })) };
   }
-  const sources = { source_rock: '虚空矿机', lumen_metal: '虚空矿机', electronic_component: '地狱传送门', hell_key: '制作站' };
+  const sources = {
+    source_rock: '虚空源岩矿机',
+    lumen_metal: '虚空源岩矿机',
+    electronic_component: '地狱狂潮传送门',
+    hell_key: '制作站'
+  };
   const jadeRates = { originium_shard: '→15玉', originium: '→60玉', pure_originium: '→240玉' };
   return { product: productId, recipe: null, source: sources[productId] || jadeRates[productId] || '基础', ingredients: [] };
 }
@@ -1656,7 +1667,7 @@ function getBackpackItems() {
       id: 'resonator',
       name: '流明金属共振捕获仪',
       icon: '📡',
-      desc: '拖拽到虚空矿机',
+      desc: '拖拽到虚空源岩矿机',
       available: resonatorCount,
       thumbImg: 'Materials/流明金属共振捕获仪.png',
       costCurrency: null,
@@ -2254,14 +2265,15 @@ function drawHTreeNode(node, x, y, depth, maxDepth) {
   ctx.fill();
   ctx.stroke();
 
-  const disp = mat.name.length > 4 ? mat.name.substring(0, 4) + '…' : mat.name;
+  const disp = mat.name;
   const iconR = HNODE_H / 2 - 2;
   const hasImg = drawMaterialIcon(node.product, nx + 4 + iconR, ny + HNODE_H / 2, iconR);
   ctx.fillStyle = '#fff';
   ctx.font = `bold ${9}px ${FONT_MONO}`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText(hasImg ? disp : (mat.icon + ' ' + disp), nx + (hasImg ? 4 + iconR * 2 + 4 : 4), ny + HNODE_H / 2);
+  const nameX = nx + (hasImg ? 4 + iconR * 2 + 4 : 6);
+  ctx.fillText(hasImg ? disp : (mat.icon + ' ' + disp), nameX, ny + HNODE_H / 2);
 
   // Count/source
   ctx.fillStyle = '#8b949e';
@@ -2858,7 +2870,7 @@ function drawProduction() {
         ctx.fillStyle = '#fff'; ctx.font = `bold 12px ${FONT_MONO}`; ctx.textAlign = 'left'; ctx.fillText(item.name, cx + 74, cy + 24);
         ctx.fillStyle = '#3fb950'; ctx.font = `11px ${FONT_MONO}`; ctx.fillText('×' + item.available, cx + 74, cy + 54);
         ctx.fillStyle = '#484f58'; ctx.font = `9px ${FONT_MONO}`;
-        ctx.fillText(item.id === 'resonator' ? '拖拽到虚空矿机' : item.id === 'protocol_transmitter' ? '拖拽放置(限1台)' : '拖拽放置', cx + 74, cy + 82);
+        ctx.fillText(item.id === 'resonator' ? '拖拽到虚空源岩矿机' : item.id === 'protocol_transmitter' ? '拖拽放置(限1台)' : '拖拽放置', cx + 74, cy + 82);
       });
     }
 
