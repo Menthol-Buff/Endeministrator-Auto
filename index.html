@@ -1399,50 +1399,22 @@ const CONFIG = {
   MIN_ZOOM: 0.15,
   MAX_ZOOM: 2.5,
   ZOOM_SENSITIVITY: 0.001,
-  NODE_RADIUS: 24,
-  EDGE_WIDTH: 2.5,
-  PARTICLE_SPEED: 80,       // px/s along edges
-  PARTICLE_INTERVAL: 800,   // ms between particle spawns
-  ANIM_DURATION: 300,
 };
 
 // ---- Cached font (CSS variables don't work in canvas) ----
 const FONT_MONO = getComputedStyle(document.documentElement)
   .getPropertyValue('--font-canvas-mono').trim();
 
-// ---- Node type definitions ----
-const NODE_TYPES = {
-  source: { label: 'Source', icon: '📦', color: '#58a6ff', category: 'entry' },
-  build:  { label: 'Build',  icon: '🔨', color: '#a371f7', category: 'process' },
-  test:   { label: 'Test',   icon: '🧪', color: '#3fb950', category: 'process' },
-  deploy: { label: 'Deploy', icon: '🚀', color: '#d2991d', category: 'process' },
-  notify: { label: 'Notify', icon: '🔔', color: '#f85149', category: 'output' },
-};
-
 // ---- App State ----
 const state = {
-  nodes: [],             // { id, type, x, y, label }
-  edges: [],             // { id, from, to }
-  particles: [],         // { edgeId, progress, speed }
-
   // View
   camera: { x: 0, y: 0, zoom: 1 },
 
   // Interaction
-  tool: 'pan',         // 'place' | 'connect' | 'delete' | 'pan'
-  placeNodeType: 'source',
-  hoveredNode: null,
-  selectedNode: null,
-  connectingFrom: null,  // node id being connected FROM
-  connectingLine: null,  // { x1, y1, x2, y2 } temp line
   dragging: null,        // { type:'node'|'pan', id?, sx?, sy?, ox?, oy? }
-  contextTarget: null,
 
   // Stats
-  nodeCounter: 0,
-  edgeCounter: 0,
   fps: 60,
-  running: false,
 
   // View
   currentView: 'warehouse', // 'warehouse' | 'production' | 'shop'
@@ -1513,12 +1485,8 @@ const MATERIAL_TO_JADE = {
 // Hell portal: 1 地狱狂潮钥匙 → rewards
 const HELL_PORTAL_REWARDS = [
   { type: 'mat', id: 'electronic_component', amount: 1, chance: 1.0 },
-  { type: 'g5', amount: 100, chance: 1.0 },
-  { type: 'jade', amount: 10, chance: 1.0 },
+  { type: 'g5', amount: 5, chance: 1.0 },
   { type: 'jade', amount: 1000, chance: 0.01 },
-  { type: 'jade', amount: 500, chance: 0.15 },
-  { type: 'jade', amount: 200, chance: 0.30 },
-  { type: 'jade', amount: 20, chance: 0.50 },
 ];
 
 // Signal analyzer recipe
@@ -1625,14 +1593,9 @@ function getDeviceProducts(deviceType) {
     case 'hell_portal':
       return [
         { id: 'electronic_component', name: '电子元件', icon: '🔌', desc: '固定产出 1/s' },
-      ].concat(
-        HELL_PORTAL_REWARDS.filter(r => r.type === 'g5' || r.type === 'jade').map(r => ({
-          id: r.type === 'g5' ? 'g5' : 'jade',
-          name: r.type === 'g5' ? 'G5' : '合成玉',
-          icon: r.type === 'g5' ? '💵' : '💎',
-          desc: `${(r.chance * 100).toFixed(0)}% +${r.amount}`,
-        }))
-      );
+        { id: 'g5', name: 'G5 ×5', icon: '💵', desc: '固定产出' },
+        { id: 'jade', name: '1000 合成玉', icon: '💎', desc: '1% 概率' },
+      ];
     case 'signal_analyzer':
       return [
         { id: 'lumen_resonator', name: '捕获仪→背包', icon: '📡', desc: '自动收集至背包' },
@@ -1757,76 +1720,6 @@ function snapToGridIntersection(wx, wy) {
 }
 
 // ---- Node / Edge CRUD ----
-function addNode(type, x, y) {
-  const def = NODE_TYPES[type];
-  const id = `n_${++state.nodeCounter}`;
-  state.nodes.push({ id, type, x: snapToGrid(x), y: snapToGrid(y), label: def.label });
-  updateStats();
-  return id;
-}
-
-function removeNode(id) {
-  state.nodes = state.nodes.filter(n => n.id !== id);
-  state.edges = state.edges.filter(e => e.from !== id && e.to !== id);
-  state.particles = state.particles.filter(p => {
-    const edge = state.edges.find(e => e.id === p.edgeId);
-    return !!edge;
-  });
-  updateStats();
-}
-
-function addEdge(fromId, toId) {
-  const exists = state.edges.some(e =>
-    (e.from === fromId && e.to === toId) || (e.from === toId && e.to === fromId)
-  );
-  if (exists || fromId === toId) return null;
-  const id = `e_${++state.edgeCounter}`;
-  state.edges.push({ id, from: fromId, to: toId });
-  updateStats();
-  return id;
-}
-
-function removeEdge(id) {
-  state.edges = state.edges.filter(e => e.id !== id);
-  state.particles = state.particles.filter(p => p.edgeId !== id);
-  updateStats();
-}
-
-function findNodeAt(wx, wy) {
-  const r = CONFIG.NODE_RADIUS / state.camera.zoom;
-  for (let i = state.nodes.length - 1; i >= 0; i--) {
-    const n = state.nodes[i];
-    const dx = n.x - wx, dy = n.y - wy;
-    if (Math.hypot(dx, dy) < r + 4) return n;
-  }
-  return null;
-}
-
-function findEdgeAt(wx, wy) {
-  const threshold = 8 / state.camera.zoom;
-  for (const edge of state.edges) {
-    const fn = state.nodes.find(n => n.id === edge.from);
-    const tn = state.nodes.find(n => n.id === edge.to);
-    if (!fn || !tn) continue;
-    const dist = pointToSegmentDist(wx, wy, fn.x, fn.y, tn.x, tn.y);
-    if (dist < threshold) return edge;
-  }
-  return null;
-}
-
-function pointToSegmentDist(px, py, ax, ay, bx, by) {
-  const dx = bx - ax, dy = by - ay;
-  const len2 = dx * dx + dy * dy;
-  if (len2 === 0) return Math.hypot(px - ax, py - ay);
-  let t = ((px - ax) * dx + (py - ay) * dy) / len2;
-  t = Math.max(0, Math.min(1, t));
-  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
-}
-
-function updateStats() {
-  // Stats removed with pipeline page
-}
-
 // ============================================================
 // Warehouse Physics System
 // ============================================================
@@ -2196,154 +2089,6 @@ function drawGrid() {
     ctx.lineTo(w, y);
   }
   ctx.stroke();
-}
-
-function drawEdges() {
-  for (const edge of state.edges) {
-    const fn = state.nodes.find(n => n.id === edge.from);
-    const tn = state.nodes.find(n => n.id === edge.to);
-    if (!fn || !tn) continue;
-
-    const fs = worldToScreen(fn.x, fn.y);
-    const ts = worldToScreen(tn.x, tn.y);
-
-    // Directional offset away from node center
-    const angle = Math.atan2(ts.y - fs.y, ts.x - fs.x);
-    const r = CONFIG.NODE_RADIUS * state.camera.zoom;
-    const sx = fs.x + Math.cos(angle) * r;
-    const sy = fs.y + Math.sin(angle) * r;
-    const ex = ts.x - Math.cos(angle) * r;
-    const ey = ts.y - Math.sin(angle) * r;
-
-    ctx.strokeStyle = '#30363d';
-    ctx.lineWidth = CONFIG.EDGE_WIDTH * state.camera.zoom;
-    ctx.lineCap = 'round';
-
-    ctx.beginPath();
-    ctx.moveTo(sx, sy);
-    ctx.lineTo(ex, ey);
-    ctx.stroke();
-
-    // Arrowhead
-    const arrowSize = 8 * state.camera.zoom;
-    const arrowAngle = Math.PI / 6;
-    ctx.fillStyle = '#484f58';
-    ctx.beginPath();
-    ctx.moveTo(ex, ey);
-    ctx.lineTo(
-      ex - arrowSize * Math.cos(angle - arrowAngle),
-      ey - arrowSize * Math.sin(angle - arrowAngle)
-    );
-    ctx.lineTo(
-      ex - arrowSize * Math.cos(angle + arrowAngle),
-      ey - arrowSize * Math.sin(angle + arrowAngle)
-    );
-    ctx.closePath();
-    ctx.fill();
-  }
-}
-
-function drawConnectingLine() {
-  if (!state.connectingLine) return;
-  const { x1, y1, x2, y2 } = state.connectingLine;
-  const s = worldToScreen(x1, y1);
-  const e = worldToScreen(x2, y2);
-
-  ctx.strokeStyle = '#58a6ff';
-  ctx.lineWidth = 2 * state.camera.zoom;
-  ctx.setLineDash([6 * state.camera.zoom, 4 * state.camera.zoom]);
-  ctx.lineCap = 'round';
-
-  ctx.beginPath();
-  ctx.moveTo(s.x, s.y);
-  ctx.lineTo(e.x, e.y);
-  ctx.stroke();
-
-  ctx.setLineDash([]);
-}
-
-function drawNode(n) {
-  const s = worldToScreen(n.x, n.y);
-  const r = CONFIG.NODE_RADIUS * state.camera.zoom;
-  const def = NODE_TYPES[n.type];
-  const isHovered = state.hoveredNode?.id === n.id;
-  const isSelected = state.selectedNode?.id === n.id;
-  const isConnectSource = state.connectingFrom === n.id;
-
-  // Glow when hovered / selected
-  if (isHovered || isSelected || isConnectSource) {
-    ctx.fillStyle = def.color + '18';
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, r + 8 * state.camera.zoom, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Selection ring
-  if (isSelected) {
-    ctx.strokeStyle = def.color;
-    ctx.lineWidth = 2.5 * state.camera.zoom;
-    ctx.setLineDash([4 * state.camera.zoom, 3 * state.camera.zoom]);
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, r + 3, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  // Node body
-  const grad = ctx.createRadialGradient(s.x, s.y, r * 0.1, s.x, s.y, r);
-  grad.addColorStop(0, '#21262d');
-  grad.addColorStop(1, '#161b22');
-
-  ctx.fillStyle = grad;
-  ctx.strokeStyle = isHovered ? def.color : '#30363d';
-  ctx.lineWidth = (isHovered ? 2 : 1.5) * state.camera.zoom;
-  ctx.beginPath();
-  ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  // Icon
-  ctx.font = `${16 * state.camera.zoom}px sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(def.icon, s.x, s.y - 4 * state.camera.zoom);
-
-  // Label
-  ctx.fillStyle = isHovered ? '#fff' : '#c9d1d9';
-  ctx.font = `${11 * state.camera.zoom}px ${FONT_MONO}`;
-  ctx.fillText(n.label, s.x, s.y + r + 13 * state.camera.zoom);
-
-  // Connect indicator (small dot)
-  if (isConnectSource) {
-    ctx.fillStyle = '#58a6ff';
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, 4 * state.camera.zoom, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-function drawParticles() {
-  for (const p of state.particles) {
-    const edge = state.edges.find(e => e.id === p.edgeId);
-    if (!edge) continue;
-
-    const fn = state.nodes.find(n => n.id === edge.from);
-    const tn = state.nodes.find(n => n.id === edge.to);
-    if (!fn || !tn) continue;
-
-    const x = fn.x + (tn.x - fn.x) * p.progress;
-    const y = fn.y + (tn.y - fn.y) * p.progress;
-    const s = worldToScreen(x, y);
-    const r = 2.5 * state.camera.zoom;
-
-    ctx.fillStyle = '#58a6ff';
-    ctx.shadowColor = '#58a6ff';
-    ctx.shadowBlur = 6 * state.camera.zoom;
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-  }
 }
 
 function drawAdminNode() {
@@ -3184,20 +2929,6 @@ const PROD_DEVICE_HALF_W = 2 * CONFIG.GRID_SIZE; // 64 — rectangle half-width 
 const PROD_DEVICE_HALF_H = 1.5 * CONFIG.GRID_SIZE; // 48 — rectangle half-height (3 grid units tall)
 const PROD_DEVICE_GAP = 8; // min gap between device rectangles
 
-function getDeviceRect(dev) {
-  return {
-    x: dev.x - PROD_DEVICE_HALF_W,
-    y: dev.y - PROD_DEVICE_HALF_H,
-    w: PROD_DEVICE_HALF_W * 2,
-    h: PROD_DEVICE_HALF_H * 2,
-  };
-}
-
-function rectsOverlap(a, b) {
-  return Math.abs(a.x - b.x) < (a.w / 2 + b.w / 2 + PROD_DEVICE_GAP) &&
-         Math.abs(a.y - b.y) < (a.h / 2 + b.h / 2 + PROD_DEVICE_GAP);
-}
-
 function isPositionFree(wx, wy, excludeId) {
   const hw = PROD_DEVICE_HALF_W, hh = PROD_DEVICE_HALF_H;
   for (const d of productionDevices) {
@@ -3305,25 +3036,6 @@ function findPortAt(wx, wy) {
 }
 
 // Check if a connection already exists for a given port
-function hasConnectionToInput(deviceId, portIndex) {
-  return conveyorConnections.some(c => c.toDeviceId === deviceId && c.toPortIndex === portIndex);
-}
-
-function hasConnectionFromOutput(deviceId, portIndex) {
-  return conveyorConnections.some(c => c.fromDeviceId === deviceId && c.fromPortIndex === portIndex);
-}
-
-function removePlacedDevice(id) {
-  // Remove connections involving this device
-  conveyorConnections = conveyorConnections.filter(c => c.fromDeviceId !== id && c.toDeviceId !== id);
-  saveConveyorConnections();
-  cleanupDeviceMaterials(id);
-  productionDevices = productionDevices.filter(d => d.id !== id);
-  saveProductionDevices();
-  activeProdDevice = null;
-  activeProdOrigPos = null;
-}
-
 // ---- Production Simulation (material flow + crafting) ----
 let prodSimTimer = 0;
 
@@ -3493,59 +3205,8 @@ function draw() {
   if (state.currentView === 'shop') { drawShop(); return; }
 }
 
-function drawMinimap() {
-  const mw = minimapCanvas.width;
-  const mh = minimapCanvas.height;
-
-  minimapCtx.clearRect(0, 0, mw, mh);
-  minimapCtx.fillStyle = '#0d1117';
-  minimapCtx.fillRect(0, 0, mw, mh);
-
-  if (state.nodes.length === 0) return;
-
-  // Compute bounds
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const n of state.nodes) {
-    minX = Math.min(minX, n.x); minY = Math.min(minY, n.y);
-    maxX = Math.max(maxX, n.x); maxY = Math.max(maxY, n.y);
-  }
-
-  const pad = 100;
-  minX -= pad; minY -= pad; maxX += pad; maxY += pad;
-
-  const scaleX = mw / (maxX - minX);
-  const scaleY = mh / (maxY - minY);
-  const scale = Math.min(scaleX, scaleY);
-
-  const offsetX = (mw - (maxX - minX) * scale) / 2 - minX * scale;
-  const offsetY = (mh - (maxY - minY) * scale) / 2 - minY * scale;
-
-  // Draw edges
-  minimapCtx.strokeStyle = '#30363d';
-  minimapCtx.lineWidth = 1;
-  for (const edge of state.edges) {
-    const fn = state.nodes.find(n => n.id === edge.from);
-    const tn = state.nodes.find(n => n.id === edge.to);
-    if (!fn || !tn) continue;
-    minimapCtx.beginPath();
-    minimapCtx.moveTo(fn.x * scale + offsetX, fn.y * scale + offsetY);
-    minimapCtx.lineTo(tn.x * scale + offsetX, tn.y * scale + offsetY);
-    minimapCtx.stroke();
-  }
-
-  // Draw nodes
-  for (const n of state.nodes) {
-    const def = NODE_TYPES[n.type];
-    minimapCtx.fillStyle = def.color;
-    minimapCtx.beginPath();
-    minimapCtx.arc(n.x * scale + offsetX, n.y * scale + offsetY, 3, 0, Math.PI * 2);
-    minimapCtx.fill();
-  }
-}
-
 // ---- Game Loop ----
 let lastTime = performance.now();
-let lastParticleSpawn = 0;
 let fpsAccum = 0;
 let fpsFrames = 0;
 
@@ -4073,8 +3734,8 @@ const SHOP_DEFS = [
     thumbImg: "Machines In Bag/Images of Machines' Icons/缩略地狱狂潮传送门.png",
     desc: '',
     costCurrency: 'g5',
-    getCost: (level) => 100,
-    maxLevel: 1,
+    getCost: (level) => 100 * Math.pow(10, level), // 100, 1000, 1a, 10a, ...
+    maxLevel: 999,
     ports: { in: 1, out: 1 },
   },
   {
@@ -4683,12 +4344,6 @@ function performAdminUpgrade() {
   updateAdminFloatPanel();
   updateAutoClickerIndicator();
   addFloatingText('⬆ 管理员升级至 Lv.' + adminLevel, adminNode.x, adminNode.y - 40, '#ffd700', 18);
-}
-
-function openAdminUpgrade() {
-  closeGacha();
-  updateAdminUpgradeModal();
-  document.getElementById('admin-upgrade-overlay').classList.add('show');
 }
 
 function closeAdminUpgrade() {
