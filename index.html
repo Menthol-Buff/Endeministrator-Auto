@@ -1422,7 +1422,12 @@ const state = {
   // Production page
   backpackOpen: false,
   conveyorMode: false,
+  collectMode: false,
+  collectHoverId: null,  // device id or conn id being hovered in collect mode
+  collectHoverType: null, // 'device' | 'belt'
   hoveredRecipeProduct: null,
+  // Double-click tracking for recipe selection
+  lastRecipeClick: {time: 0, prodId: null, deviceId: null},
 };
 
 // ---- Per-device material inventory ----
@@ -1513,6 +1518,19 @@ let activeProdDevice = null; // id of device being repositioned
 let activeProdOrigPos = null; // { x, y } original position before move
 let longPressTimer = null;
 let longPressTarget = null;
+
+// ---- Per-device recipe assignment ----
+let deviceRecipes = (() => {
+  try {
+    return JSON.parse(localStorage.getItem('device_recipes') || '{}');
+  } catch (e) {
+    return {};
+  }
+})(); // { [deviceId]: productId }
+
+function saveDeviceRecipes() {
+  localStorage.setItem('device_recipes', JSON.stringify(deviceRecipes));
+}
 
 // ---- Conveyor belt connections ----
 let conveyorConnections = (() => {
@@ -2005,16 +2023,16 @@ function updateWarehouse(dt) {
           ent.lastCollisionTime = now;
           const prod = getOperatorProduction(ent.rarity, upgEnt);
           g5 += prod;
+          g5Dirty = true;
           addFloatingText('+' + formatCurrency(prod) + ' G5', ent.x, ent.y - 20, '#ffd700', 14);
         }
         if (!other.lastCollisionTime || now - other.lastCollisionTime > 1.0) {
           other.lastCollisionTime = now;
           const prod = getOperatorProduction(other.rarity, upgOther);
           g5 += prod;
+          g5Dirty = true;
           addFloatingText('+' + formatCurrency(prod) + ' G5', other.x, other.y - 20, '#ffd700', 14);
         }
-        saveG5();
-        updateCurrencyDisplay();
       }
     }
 
@@ -2036,8 +2054,7 @@ function updateWarehouse(dt) {
         const upg = (characterOwnership[ent.charFile]?.upg || 0);
         const prod = getOperatorProduction(ent.rarity, upg);
         g5 += prod;
-        saveG5();
-        updateCurrencyDisplay();
+        g5Dirty = true;
         addFloatingText('+' + formatCurrency(prod) + ' G5', ent.x, ent.y - 20, '#ffd700', 14);
       }
     }
@@ -2450,6 +2467,7 @@ function drawProduction() {
     const def = SHOP_DEFS.find(d => d.id === dev.deviceType);
     if (!def) continue;
     const s = worldToScreen(dev.x, dev.y);
+
     drawDeviceBody(s.x, s.y, def, 1, false, false, false);
     drawDevicePorts(dev);
 
@@ -2490,15 +2508,6 @@ function drawProduction() {
   // ---- Draw material indicators on selected device ----
 
   // ---- Draw conveyor connections ----
-  function getPortWorldPos(deviceId, portIndex, type) {
-    const dev = productionDevices.find(d => d.id === deviceId);
-    if (!dev) return null;
-    const ports = getDevicePorts(dev);
-    const list = type === 'output' ? ports.outputs : ports.inputs;
-    const port = list.find(p => p.index === portIndex);
-    return port ? { x: port.x, y: port.y } : null;
-  }
-
   for (const conn of conveyorConnections) {
     const fromPos = getPortWorldPos(conn.fromDeviceId, conn.fromPortIndex, 'output');
     const toPos = getPortWorldPos(conn.toDeviceId, conn.toPortIndex, 'input');
@@ -2641,6 +2650,8 @@ function drawProduction() {
         const listW = 148, itemH = 28, gap = 3;
         const startY = 68;
         const listX = rect.width - listW - 10;
+        const isCraftStation = dev.deviceType === 'craft_station';
+        const activeRecipe = deviceRecipes[dev.id];
         const listH = products.length * (itemH + gap) - gap + 30;
 
         // List background
@@ -2656,17 +2667,18 @@ function drawProduction() {
         ctx.font = `bold ${10}px ${FONT_MONO}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillText('可合成产物', listX + listW / 2, startY + 6);
+        ctx.fillText(isCraftStation ? (activeRecipe ? '当前配方' : '选择配方') : '可合成产物', listX + listW / 2, startY + 6);
 
         // Items
         for (let i = 0; i < products.length; i++) {
           const prod = products[i];
           const iy = startY + 20 + i * (itemH + gap);
-          const isSelected = selectedRecipeProduct === prod.id;
+          const isTreeSelected = selectedRecipeProduct === prod.id;
+          const isActive = activeRecipe === prod.id;
 
-          ctx.fillStyle = isSelected ? '#1c2841' : '#11151a';
-          ctx.strokeStyle = isSelected ? '#d4af37' : '#484f58';
-          ctx.lineWidth = isSelected ? 1.5 : 1;
+          ctx.fillStyle = isTreeSelected ? '#1c2841' : isActive ? '#152218' : '#11151a';
+          ctx.strokeStyle = isTreeSelected ? '#d4af37' : isActive ? '#3fb950' : '#484f58';
+          ctx.lineWidth = (isTreeSelected || isActive) ? 1.5 : 1;
           roundRectScreen(listX, iy, listW, itemH, 4);
           ctx.fill();
           ctx.stroke();
@@ -2677,11 +2689,19 @@ function drawProduction() {
           ctx.textBaseline = 'middle';
           const pIconR = itemH / 2 - 4;
           const pHasImg = drawMaterialIcon(prod.id, listX + 6 + pIconR, iy + itemH / 2, pIconR);
-          ctx.fillText(pHasImg ? prod.name : (prod.icon + ' ' + prod.name),
-            listX + (pHasImg ? 6 + pIconR * 2 + 4 : 6), iy + itemH / 2);
+          const textX = listX + (pHasImg ? 6 + pIconR * 2 + 4 : 6);
+          ctx.fillText(pHasImg ? prod.name : (prod.icon + ' ' + prod.name), textX, iy + itemH / 2);
+
+          // Active recipe checkmark
+          if (isActive && isCraftStation) {
+            ctx.fillStyle = '#3fb950';
+            ctx.font = `bold ${12}px ${FONT_MONO}`;
+            ctx.textAlign = 'right';
+            ctx.fillText('✓', listX + listW - 6, iy + itemH / 2);
+          }
 
           // Draw horizontal recipe tree for selected product
-          if (isSelected) {
+          if (isTreeSelected) {
             const tree = buildRecipeTree(prod.id);
             if (tree) {
               const treeDims = measureHTree(tree);
@@ -2709,6 +2729,37 @@ function drawProduction() {
         const as = worldToScreen(dev.x, dev.y);
         drawDeviceBody(as.x, as.y, def, 1, false, true, false);
         drawDevicePorts(dev);
+      }
+    }
+  }
+
+  // Collect-mode hover glow on device or belt
+  if (state.collectMode && state.collectHoverId) {
+    if (state.collectHoverType === 'device') {
+      const dev = productionDevices.find(d => d.id === state.collectHoverId);
+      if (dev) {
+        const s = worldToScreen(dev.x, dev.y);
+        drawCollectGlow(s.x, s.y);
+      }
+    } else if (state.collectHoverType === 'belt') {
+      const conn = conveyorConnections.find(c => c.id === state.collectHoverId);
+      if (conn) {
+        const fromPos = getPortWorldPos(conn.fromDeviceId, conn.fromPortIndex, 'output');
+        const toPos = getPortWorldPos(conn.toDeviceId, conn.toPortIndex, 'input');
+        if (fromPos && toPos) {
+          const fromS = worldToScreen(fromPos.x, fromPos.y);
+          const toS = worldToScreen(toPos.x, toPos.y);
+          const pulse = Math.sin(performance.now() / 400) * 0.35 + 0.65;
+          ctx.shadowColor = `rgba(163,113,247,${0.7 * pulse})`;
+          ctx.shadowBlur = 10 * state.camera.zoom;
+          ctx.strokeStyle = `rgba(163,113,247,${0.7 * pulse})`;
+          ctx.lineWidth = 4 * state.camera.zoom;
+          ctx.beginPath();
+          ctx.moveTo(fromS.x, fromS.y);
+          ctx.lineTo(toS.x, toS.y);
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+        }
       }
     }
   }
@@ -2796,6 +2847,26 @@ function drawProduction() {
   ctx.fillStyle = '#58a6ff';
   ctx.font = `bold 9px ${FONT_MONO}`;
   ctx.fillText('E', cbX + 12, cbY - 10);
+
+  // Quick-collect button (F) — below conveyor button
+  const fcX = 36, fcY = 88, fcR = 22;
+  ctx.fillStyle = state.collectMode ? '#2a1f3d' : '#161b22';
+  ctx.strokeStyle = state.collectMode ? '#a371f7' : '#30363d';
+  ctx.lineWidth = 1.5;
+  roundRectScreen(fcX - fcR, fcY - fcR, fcR * 2, fcR * 2, 8);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = `16px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('📥', fcX, fcY);
+
+  // F badge
+  ctx.fillStyle = '#a371f7';
+  ctx.font = `bold 9px ${FONT_MONO}`;
+  ctx.fillText('F', fcX + 12, fcY - 10);
 
   // Backpack button (bottom-left) — only show when panel is closed
   const bpBtnItems = getBackpackItems();
@@ -2983,6 +3054,15 @@ function getDevicePorts(dev) {
   return { inputs, outputs };
 }
 
+function getPortWorldPos(deviceId, portIndex, type) {
+  const dev = productionDevices.find(d => d.id === deviceId);
+  if (!dev) return null;
+  const ports = getDevicePorts(dev);
+  const list = type === 'output' ? ports.outputs : ports.inputs;
+  const port = list.find(p => p.index === portIndex);
+  return port ? {x: port.x, y: port.y} : null;
+}
+
 function isInCollectZone(wx, wy) {
   const s = worldToScreen(wx, wy);
   const rect = canvas.getBoundingClientRect();
@@ -2995,13 +3075,41 @@ function isInCollectZone(wx, wy) {
 
 function isConveyorBtnHit(screenX, screenY) {
   const bx = 36, by = 36, br = 22;
-  return Math.hypot(screenX - bx, screenY - by) < br + 4;
+  return screenX > bx - br && screenX < bx + br && screenY > by - br && screenY < by + br;
+}
+
+function isCollectBtnHit(screenX, screenY) {
+  const bx = 36, by = 88, br = 22;
+  return screenX > bx - br && screenX < bx + br && screenY > by - br && screenY < by + br;
 }
 
 function isBackpackBtnHit(screenX, screenY) {
   const rect = canvas.getBoundingClientRect();
   const bx = 20, by = rect.height - 60, br = 22;
-  return Math.hypot(screenX - bx, screenY - by) < br + 4;
+  return screenX > bx - br && screenX < bx + br && screenY > by - br && screenY < by + br;
+}
+
+// Quick-collect: remove a device and return it to backpack
+function collectDeviceBack(deviceId) {
+  conveyorConnections = conveyorConnections.filter(
+          c => c.fromDeviceId !== deviceId && c.toDeviceId !== deviceId
+  );
+  saveConveyorConnections();
+  cleanupDeviceMaterials(deviceId);
+  delete deviceRecipes[deviceId];
+  saveDeviceRecipes();
+  productionDevices = productionDevices.filter(d => d.id !== deviceId);
+  saveProductionDevices();
+}
+
+// Point-to-segment distance for conveyor belt click detection
+function pointToSegmentDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.hypot(px - ax, py - ay);
+  let t = ((px - ax) * dx + (py - ay) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
 }
 
 function findRecipeProductAt(screenX, screenY) {
@@ -3107,8 +3215,13 @@ function updateProductionSimulation(dt) {
         }
       }
 
-      // --- Craft station: check recipes ---
+      // --- Craft station: produce selected recipe only ---
       if (dev.deviceType === 'craft_station') {
+        const recipeId = deviceRecipes[dev.id];
+        if (!recipeId) continue; // no recipe selected yet
+        const recipe = CRAFT_RECIPES.find(r => Object.keys(r.output)[0] === recipeId);
+        if (!recipe) continue;
+
         // Collect all input materials into a single pool
         const allInputs = {};
         for (const ib of mats.inputs) {
@@ -3117,15 +3230,10 @@ function updateProductionSimulation(dt) {
           }
         }
 
-        // Try each recipe
-        for (const recipe of CRAFT_RECIPES) {
-          if (canCraft(allInputs, recipe.inputs)) {
-            // Consume inputs proportionally from input ports
-            consumeFromInputs(mats.inputs, recipe.inputs);
-            // Produce output
-            for (const [matId, count] of Object.entries(recipe.output)) {
-              addToBuffer(mats.outputs[0], matId, count);
-            }
+        if (canCraft(allInputs, recipe.inputs)) {
+          consumeFromInputs(mats.inputs, recipe.inputs);
+          for (const [matId, count] of Object.entries(recipe.output)) {
+            addToBuffer(mats.outputs[0], matId, count);
           }
         }
       }
@@ -3242,13 +3350,19 @@ function update(dt) {
       const clickValue = getAdminClickValue(adminLevel);
       const gain = clickValue * autoClickerLevel;
       g5 += gain;
-      saveG5();
-      updateCurrencyDisplay();
+      g5Dirty = true;
       addFloatingText('⚡+' + formatCurrency(gain) + ' G5', adminNode.x, adminNode.y - 40, '#3fb950', 13);
     }
     // Update progress bar
     const fillEl = document.getElementById('ac-fill');
     if (fillEl) fillEl.style.width = (autoClickerTimer / interval * 100) + '%';
+  }
+
+  // Flush batched G5 changes once per frame
+  if (g5Dirty) {
+    saveG5();
+    updateCurrencyDisplay();
+    g5Dirty = false;
   }
 
   // Update floating texts (currency gains, etc.)
@@ -3295,19 +3409,48 @@ canvas.addEventListener('mousedown', (e) => {
   // ---- Production page interactions ----
   if (e.button === 0 && state.currentView === 'production') {
 
-    // Product list item click
-    if (selectedProdDevice && !state.conveyorMode && !state.backpackOpen) {
+    // Product list item click (with double-click detection for recipe selection)
+    if (selectedProdDevice && !state.conveyorMode && !state.collectMode && !state.backpackOpen) {
       const prodId = findRecipeProductAt(pos.x, pos.y);
       if (prodId) {
-        selectedRecipeProduct = (selectedRecipeProduct === prodId) ? null : prodId;
+        const now = performance.now();
+        const last = state.lastRecipeClick;
+        const isDouble = (last.prodId === prodId && last.deviceId === selectedProdDevice && (now - last.time) < 400);
+        state.lastRecipeClick = {time: now, prodId, deviceId: selectedProdDevice};
+
+        if (isDouble) {
+          const dev = productionDevices.find(d => d.id === selectedProdDevice);
+          if (dev && dev.deviceType === 'craft_station') {
+            deviceRecipes[dev.id] = prodId;
+            saveDeviceRecipes();
+          }
+          selectedRecipeProduct = prodId;
+        } else {
+          selectedRecipeProduct = (selectedRecipeProduct === prodId) ? null : prodId;
+        }
         return;
       }
     }
 
-    // Conveyor belt button
+    // Conveyor belt button (E)
     if (isConveyorBtnHit(pos.x, pos.y)) {
       state.conveyorMode = !state.conveyorMode;
-      connectingWire = null; // cancel any active wire when toggling
+      state.collectMode = false;
+      state.collectHoverId = null;
+      state.collectHoverType = null;
+      connectingWire = null;
+      selectedRecipeProduct = null;
+      return;
+    }
+
+    // Quick-collect button (F)
+    if (isCollectBtnHit(pos.x, pos.y)) {
+      state.collectMode = !state.collectMode;
+      state.conveyorMode = false;
+      state.collectHoverId = null;
+      state.collectHoverType = null;
+      connectingWire = null;
+      selectedRecipeProduct = null;
       return;
     }
 
@@ -3327,6 +3470,32 @@ canvas.addEventListener('mousedown', (e) => {
       }
       // Click outside panel → close it
       state.backpackOpen = false;
+      return;
+    }
+
+    // Collect mode — click device or conveyor to collect
+    if (state.collectMode && !state.backpackOpen) {
+      const prodDev = findProdDeviceAt(world.x, world.y);
+      if (prodDev) {
+        collectDeviceBack(prodDev.id);
+        selectedProdDevice = null;
+        selectedRecipeProduct = null;
+        return;
+      }
+      // Check clicking on a conveyor belt line
+      for (const conn of conveyorConnections) {
+        const fromPos = getPortWorldPos(conn.fromDeviceId, conn.fromPortIndex, 'output');
+        const toPos = getPortWorldPos(conn.toDeviceId, conn.toPortIndex, 'input');
+        if (!fromPos || !toPos) continue;
+        const dist = pointToSegmentDist(world.x, world.y, fromPos.x, fromPos.y, toPos.x, toPos.y);
+        if (dist < 16) {
+          conveyorConnections = conveyorConnections.filter(c => c.id !== conn.id);
+          saveConveyorConnections();
+          return;
+        }
+      }
+      // Click on empty space → turn off collect mode
+      state.collectMode = false;
       return;
     }
 
@@ -3353,10 +3522,15 @@ canvas.addEventListener('mousedown', (e) => {
 
     // Placed device → start long-press or immediate activate
     const prodDev = findProdDeviceAt(world.x, world.y);
-    if (prodDev && !activeProdDevice && !state.conveyorMode) {
+    if (prodDev && !activeProdDevice && !state.conveyorMode && !state.collectMode) {
       // Click to toggle material display
       selectedProdDevice = (selectedProdDevice === prodDev.id) ? null : prodDev.id;
-      selectedRecipeProduct = null;
+      // Auto-show tree for the active recipe on craft stations
+      if (prodDev.deviceType === 'craft_station' && deviceRecipes[prodDev.id]) {
+        selectedRecipeProduct = deviceRecipes[prodDev.id];
+      } else {
+        selectedRecipeProduct = null;
+      }
       longPressTarget = prodDev.id;
       longPressTimer = setTimeout(() => {
         if (longPressTarget) {
@@ -3372,6 +3546,7 @@ canvas.addEventListener('mousedown', (e) => {
     // Click on empty space → deselect
     if (!state.conveyorMode && !state.backpackOpen) {
       selectedProdDevice = null;
+      selectedRecipeProduct = null;
     }
   }
 
@@ -3442,15 +3617,43 @@ canvas.addEventListener('mousemove', (e) => {
       canvas.style.cursor = 'crosshair';
     }
 
-    // Cursor for backpack items, devices, conveyor mode
+    // Cursor for backpack items, devices, conveyor/collect mode
     if (!dragDevice && !activeProdDevice && !state.dragging && !connectingWire) {
       if (state.conveyorMode) {
           canvas.style.cursor = 'cell';
+      } else if (state.collectMode) {
+        canvas.style.cursor = 'pointer';
+        // Track hover target for purple glow
+        const hoverDev = findProdDeviceAt(world.x, world.y);
+        if (hoverDev) {
+          state.collectHoverId = hoverDev.id;
+          state.collectHoverType = 'device';
+        } else {
+          // Check hovering over conveyor belt
+          let foundBelt = null;
+          for (const conn of conveyorConnections) {
+            const fromPos = getPortWorldPos(conn.fromDeviceId, conn.fromPortIndex, 'output');
+            const toPos = getPortWorldPos(conn.toDeviceId, conn.toPortIndex, 'input');
+            if (!fromPos || !toPos) continue;
+            const dist = pointToSegmentDist(world.x, world.y, fromPos.x, fromPos.y, toPos.x, toPos.y);
+            if (dist < 16) {
+              foundBelt = conn;
+              break;
+            }
+          }
+          if (foundBelt) {
+            state.collectHoverId = foundBelt.id;
+            state.collectHoverType = 'belt';
+          } else {
+            state.collectHoverId = null;
+            state.collectHoverType = null;
+          }
+        }
       } else {
         const hoverDev = findProdDeviceAt(world.x, world.y);
         const hoverBP = state.backpackOpen ? findBackpackItemAt(pos.x, pos.y) : null;
         state.hoveredRecipeProduct = selectedProdDevice ? findRecipeProductAt(pos.x, pos.y) : null;
-        if (hoverDev || hoverBP || state.hoveredRecipeProduct || isBackpackBtnHit(pos.x, pos.y) || isConveyorBtnHit(pos.x, pos.y)) {
+        if (hoverDev || hoverBP || state.hoveredRecipeProduct || isBackpackBtnHit(pos.x, pos.y) || isConveyorBtnHit(pos.x, pos.y) || isCollectBtnHit(pos.x, pos.y)) {
           canvas.style.cursor = 'pointer';
         } else {
           canvas.style.cursor = 'crosshair';
@@ -3524,7 +3727,7 @@ canvas.addEventListener('mouseup', (e) => {
         }
       }
       connectingWire = null;
-      canvas.style.cursor = state.conveyorMode ? 'cell' : 'crosshair';
+      canvas.style.cursor = state.conveyorMode ? 'cell' : (state.collectMode ? 'pointer' : 'crosshair');
       return;
     }
 
@@ -3561,14 +3764,7 @@ canvas.addEventListener('mouseup', (e) => {
     if (activeProdDevice) {
       const dev = productionDevices.find(d => d.id === activeProdDevice);
       if (dev && isInCollectZone(dev.x, dev.y)) {
-        // Remove device → return to backpack, also remove its connections
-        conveyorConnections = conveyorConnections.filter(
-          c => c.fromDeviceId !== activeProdDevice && c.toDeviceId !== activeProdDevice
-        );
-        saveConveyorConnections();
-        cleanupDeviceMaterials(activeProdDevice);
-        productionDevices = productionDevices.filter(d => d.id !== activeProdDevice);
-        saveProductionDevices();
+        collectDeviceBack(activeProdDevice);
       } else {
         saveProductionDevices();
       }
@@ -3611,6 +3807,46 @@ canvas.addEventListener('wheel', (e) => {
 
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
+// Draw collect-mode purple glow around a device at screen position (s.x, s.y)
+function drawCollectGlow(sx, sy) {
+  const hw = PROD_DEVICE_HALF_W * state.camera.zoom;
+  const hh = PROD_DEVICE_HALF_H * state.camera.zoom;
+  const pulse = Math.sin(performance.now() / 400) * 0.35 + 0.65;
+  const glowSize = 10 * state.camera.zoom;
+
+  // Outer glow layers
+  for (let g = 2; g >= 0; g--) {
+    const alpha = 0.08 + g * 0.06;
+    const spread = glowSize * (g + 1);
+    ctx.fillStyle = `rgba(163,113,247,${alpha * pulse})`;
+    roundRectScreen(sx - hw - spread, sy - hh - spread, (hw + spread) * 2, (hh + spread) * 2, 12 * state.camera.zoom);
+    ctx.fill();
+  }
+
+  // Purple border glow
+  ctx.shadowColor = 'rgba(163,113,247,0.7)';
+  ctx.shadowBlur = 12 * pulse * state.camera.zoom;
+  ctx.strokeStyle = `rgba(163,113,247,${0.6 * pulse})`;
+  ctx.lineWidth = 2.5 * state.camera.zoom;
+  roundRectScreen(sx - hw - 3, sy - hh - 3, hw * 2 + 6, hh * 2 + 6, 10);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Floating sparkle particles
+  const sparkCount = 6;
+  for (let i = 0; i < sparkCount; i++) {
+    const angle = (performance.now() / 1200 + i * Math.PI * 2 / sparkCount) % (Math.PI * 2);
+    const dist = (18 + Math.sin(performance.now() / 600 + i) * 6) * state.camera.zoom;
+    const psx = sx + Math.cos(angle) * dist;
+    const psy = sy + Math.sin(angle) * dist;
+    const sr = (2 + Math.sin(performance.now() / 300 + i * 2) * 0.8) * state.camera.zoom;
+    ctx.fillStyle = `rgba(163,113,247,${0.5 + Math.sin(performance.now() / 350 + i) * 0.3})`;
+    ctx.beginPath();
+    ctx.arc(psx, psy, sr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 // ---- View Switching ----
 function switchView(viewName) {
   state.currentView = viewName;
@@ -3643,6 +3879,10 @@ function switchView(viewName) {
   state.hoveredRecipeProduct = null;
   state.backpackOpen = false;
   state.conveyorMode = false;
+  state.collectMode = false;
+  state.collectHoverId = null;
+  state.collectHoverType = null;
+  state.lastRecipeClick = {time: 0, prodId: null, deviceId: null};
   dragDevice = null;
   activeProdDevice = null;
   activeProdOrigPos = null;
@@ -3722,7 +3962,7 @@ const SHOP_DEFS = [
     thumbImg: "Machines In Bag/Images of Machines' Icons/缩略虚空源岩矿机.png",
     desc: '',
     costCurrency: 'g5',
-    getCost: (level) => 100 * Math.pow(10, level), // 100, 1000, 1a, 10a, ...
+    getCost: (level) => 10 * Math.pow(10, level), // 10, 100, 1000, 1a, ...
     maxLevel: 999,
     ports: { in: 0, out: 1 },
   },
@@ -4262,6 +4502,7 @@ let easterEggClaimed = localStorage.getItem('egg_claimed') === '1'; // one-time 
 // ---- Currency & Ownership State ----
 let currency = parseInt(localStorage.getItem('gacha_currency') || '0');
 let g5 = parseInt(localStorage.getItem('g5_currency') || '0');
+let g5Dirty = false; // batch G5 save/display per frame
 const characterOwnership = (() => {
   try { return JSON.parse(localStorage.getItem('gacha_ownership') || '{}'); }
   catch (e) { return {}; }
@@ -4431,7 +4672,9 @@ function updateCurrencyDisplay() {
   if (g5El) g5El.textContent = g5Formatted;
   const gachaEl = document.getElementById('gacha-currency-display');
   if (gachaEl) gachaEl.textContent = curFormatted;
-  // 每次合成玉数量变化时，重新检测管理员升级按钮状态
+}
+
+function updateAdminDisplays() {
   updateAdminUpgradeModal();
   updateAdminFloatPanel();
 }
@@ -4807,7 +5050,15 @@ document.addEventListener('keydown', (e) => {
   // E key toggles conveyor mode (production page only)
   if ((e.key === 'e' || e.key === 'E') && state.currentView === 'production') {
     state.conveyorMode = !state.conveyorMode;
-    connectingWire = null; // cancel any active wire when toggling
+    state.collectMode = false;
+    connectingWire = null;
+  }
+
+  // F key toggles collect mode (production page only)
+  if ((e.key === 'f' || e.key === 'F') && state.currentView === 'production') {
+    state.collectMode = !state.collectMode;
+    state.conveyorMode = false;
+    connectingWire = null;
   }
 
   // Escape cancels wire drag (production page, conveyor mode)
@@ -4841,7 +5092,6 @@ canvas.addEventListener('touchmove', (e) => {
 }, { passive: true });
 
 // ---- Start ----
-resize();
 state.camera = { x: 0, y: 0, zoom: 1 };
 migrateOwnership();
 updateCurrencyDisplay();
